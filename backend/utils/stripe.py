@@ -39,7 +39,6 @@ def create_subscription_checkout_session(uid: str, price_id: str, idempotency_ke
         success_url = urljoin(base_url, 'v1/payments/success?session_id={CHECKOUT_SESSION_ID}')
         cancel_url = urljoin(base_url, 'v1/payments/cancel')
         
-        # session creation parameters
         session_params = {
             'client_reference_id': uid,
             'payment_method_types': ['card'],
