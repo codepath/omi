@@ -12,7 +12,7 @@ import 'package:omi/backend/schema/transcript_segment.dart';
 import 'package:omi/providers/app_provider.dart';
 import 'package:omi/providers/conversation_provider.dart';
 import 'package:omi/utils/analytics/mixpanel.dart';
-import 'package:instabug_flutter/instabug_flutter.dart';
+// import 'package:instabug_flutter/instabug_flutter.dart';
 import 'package:tuple/tuple.dart';
 
 class ConversationDetailProvider extends ChangeNotifier with MessageNotifierMixin {
@@ -248,10 +248,10 @@ class ConversationDetailProvider extends ChangeNotifier with MessageNotifierMixi
     } catch (err, stacktrace) {
       print(err);
       var conversationReporting = MixpanelManager().getConversationEventProperties(conversation);
-      CrashReporting.reportHandledCrash(err, stacktrace, level: NonFatalExceptionLevel.critical, userAttributes: {
-        'conversation_transcript_length': conversationReporting['transcript_length'].toString(),
-        'conversation_transcript_word_count': conversationReporting['transcript_word_count'].toString(),
-      });
+      // CrashReporting.reportHandledCrash(err, stacktrace, level: NonFatalExceptionLevel.critical, userAttributes: {
+      //   'conversation_transcript_length': conversationReporting['transcript_length'].toString(),
+      //   'conversation_transcript_word_count': conversationReporting['transcript_word_count'].toString(),
+      // });
       notifyError('REPROCESS_FAILED');
       updateReprocessConversationLoadingState(false);
       updateReprocessConversationId('');

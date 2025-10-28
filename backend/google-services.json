@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "824646744879",
+    "project_id": "omi-tests-13bcb",
+    "storage_bucket": "omi-tests-13bcb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:824646744879:android:7f594bd7af30f2f618bfda",
+        "android_client_info": {
+          "package_name": "com.omi.blab"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUPNWwkiFRMPUwWiaBIDGBs9n72rV4sl4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
