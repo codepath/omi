@@ -189,6 +189,7 @@ def get_action_items(
         query = query.where(filter=FieldFilter('completed', '==', completed))
 
     # Order by created date
+    query = query.order_by('due_at', direction=firestore.Query.ASCENDING)
     query = query.order_by('created_at', direction=firestore.Query.DESCENDING)
 
     # Apply pagination
@@ -238,9 +239,9 @@ def get_action_items(
 
     action_items.sort(
         key=lambda x: (
-            x.get('due_at') is None,
-            x.get('due_at') or datetime.max.replace(tzinfo=timezone.utc),
-            -(x.get('created_at', datetime.min.replace(tzinfo=timezone.utc)).timestamp()),
+            x.get('due_at') is None or x.get('due_at') == '',
+            x.get('due_at') if x.get('due_at') is not None else datetime.max.replace(tzinfo=timezone.utc)
+            # -(x.get('created_at', datetime.min.replace(tzinfo=timezone.utc)).timestamp()),
         )
     )
 
