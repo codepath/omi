@@ -53,15 +53,15 @@ class $AssetsFontsGen {
 
   /// List of all assets
   List<String> get values => [
-        sfprodisplayblackitalic,
-        sfprodisplaybold,
-        sfprodisplayheavyitalic,
-        sfprodisplaylightitalic,
-        sfprodisplaymedium,
-        sfprodisplayregular,
-        sfprodisplaysemibolditalic,
-        sfprodisplaythinitalic
-      ];
+    sfprodisplayblackitalic,
+    sfprodisplaybold,
+    sfprodisplayheavyitalic,
+    sfprodisplaylightitalic,
+    sfprodisplaymedium,
+    sfprodisplayregular,
+    sfprodisplaysemibolditalic,
+    sfprodisplaythinitalic,
+  ];
 }
 
 class $AssetsImagesGen {
@@ -234,13 +234,13 @@ class $AssetsImagesGen {
   AssetGenImage get omiGlass =>
       const AssetGenImage('assets/images/omi-glass.png');
 
-  /// File path: assets/images/omi-without-rope-turned-off.png
+  /// File path: assets/images/omi-without-rope-turned-off.webp
   AssetGenImage get omiWithoutRopeTurnedOff =>
-      const AssetGenImage('assets/images/omi-without-rope-turned-off.png');
+      const AssetGenImage('assets/images/omi-without-rope-turned-off.webp');
 
-  /// File path: assets/images/omi-without-rope.png
+  /// File path: assets/images/omi-without-rope.webp
   AssetGenImage get omiWithoutRope =>
-      const AssetGenImage('assets/images/omi-without-rope.png');
+      const AssetGenImage('assets/images/omi-without-rope.webp');
 
   /// File path: assets/images/onboarding-bg-1.jpg
   AssetGenImage get onboardingBg1 =>
@@ -269,26 +269,6 @@ class $AssetsImagesGen {
   /// File path: assets/images/onboarding-bg-6.jpg
   AssetGenImage get onboardingBg6 =>
       const AssetGenImage('assets/images/onboarding-bg-6.jpg');
-
-  /// File path: assets/images/onboarding-language-grey.png
-  AssetGenImage get onboardingLanguageGrey =>
-      const AssetGenImage('assets/images/onboarding-language-grey.png');
-
-  /// File path: assets/images/onboarding-name-grey.png
-  AssetGenImage get onboardingNameGrey =>
-      const AssetGenImage('assets/images/onboarding-name-grey.png');
-
-  /// File path: assets/images/onboarding-name-white.png
-  AssetGenImage get onboardingNameWhite =>
-      const AssetGenImage('assets/images/onboarding-name-white.png');
-
-  /// File path: assets/images/onboarding-name.png
-  AssetGenImage get onboardingName =>
-      const AssetGenImage('assets/images/onboarding-name.png');
-
-  /// File path: assets/images/onboarding-permissions.png
-  AssetGenImage get onboardingPermissions =>
-      const AssetGenImage('assets/images/onboarding-permissions.png');
 
   /// File path: assets/images/onboarding.mp4
   String get onboarding => 'assets/images/onboarding.mp4';
@@ -359,85 +339,80 @@ class $AssetsImagesGen {
 
   /// List of all assets
   List<dynamic> get values => [
-        a1,
-        a2,
-        a3,
-        a4,
-        a5,
-        logoTextWhite,
-        aiMagic,
-        appLauncherIcon,
-        appLauncherIconV1,
-        appLauncherIconV2,
-        appleRemindersLogo,
-        appleLogo,
-        background,
-        blob,
-        calendarLogo,
-        checkbox,
-        clone,
-        emailLogo,
-        emotionalFeedback1,
-        facebookLogo,
-        googleLogo,
-        gradientCard,
-        herologo,
-        herologoV1,
-        herologoV3,
-        herologoV4,
-        icChart,
-        icCloneChat,
-        icClonePlus,
-        icDollar,
-        icPersonaProfile,
-        icSettingPersona,
-        imessageLogo,
-        instagramLogo,
-        instruction1,
-        instruction2,
-        instruction3,
-        linkIcon,
-        linkedinLogo,
-        logoTransparent,
-        logoTransparentV1,
-        logoTransparentV2,
-        newBackground,
-        notionLogo,
-        omiDevkitWithoutRope,
-        omiGlass,
-        omiWithoutRopeTurnedOff,
-        omiWithoutRope,
-        onboardingBg1,
-        onboardingBg2,
-        onboardingBg3,
-        onboardingBg4,
-        onboardingBg51,
-        onboardingBg52,
-        onboardingBg6,
-        onboardingLanguageGrey,
-        onboardingNameGrey,
-        onboardingNameWhite,
-        onboardingName,
-        onboardingPermissions,
-        onboarding,
-        recordingGreenCircleIcon,
-        slackLogo,
-        speaker0Icon,
-        speaker1Icon,
-        splash,
-        splashIcon,
-        splashIconV1,
-        splashIconV2,
-        splashV1,
-        splashV2,
-        stars,
-        stripeLogo,
-        telegramLogo,
-        whatsappLogo,
-        xLogo,
-        xLogoMini,
-        youtubeLogo
-      ];
+    a1,
+    a2,
+    a3,
+    a4,
+    a5,
+    logoTextWhite,
+    aiMagic,
+    appLauncherIcon,
+    appLauncherIconV1,
+    appLauncherIconV2,
+    appleRemindersLogo,
+    appleLogo,
+    background,
+    blob,
+    calendarLogo,
+    checkbox,
+    clone,
+    emailLogo,
+    emotionalFeedback1,
+    facebookLogo,
+    googleLogo,
+    gradientCard,
+    herologo,
+    herologoV1,
+    herologoV3,
+    herologoV4,
+    icChart,
+    icCloneChat,
+    icClonePlus,
+    icDollar,
+    icPersonaProfile,
+    icSettingPersona,
+    imessageLogo,
+    instagramLogo,
+    instruction1,
+    instruction2,
+    instruction3,
+    linkIcon,
+    linkedinLogo,
+    logoTransparent,
+    logoTransparentV1,
+    logoTransparentV2,
+    newBackground,
+    notionLogo,
+    omiDevkitWithoutRope,
+    omiGlass,
+    omiWithoutRopeTurnedOff,
+    omiWithoutRope,
+    onboardingBg1,
+    onboardingBg2,
+    onboardingBg3,
+    onboardingBg4,
+    onboardingBg51,
+    onboardingBg52,
+    onboardingBg6,
+    onboarding,
+    recordingGreenCircleIcon,
+    slackLogo,
+    speaker0Icon,
+    speaker1Icon,
+    splash,
+    splashIcon,
+    splashIconV1,
+    splashIconV2,
+    splashV1,
+    splashV2,
+    stars,
+    stripeLogo,
+    telegramLogo,
+    whatsappLogo,
+    xLogo,
+    xLogoMini,
+    youtubeLogo,
+  ];
 }
 
 class $AssetsLottieAnimationsGen {
@@ -484,11 +459,7 @@ class Assets {
 }
 
 class AssetGenImage {
-  const AssetGenImage(
-    this._assetName, {
-    this.size,
-    this.flavors = const {},
-  });
+  const AssetGenImage(this._assetName, {this.size, this.flavors = const {}});
 
   final String _assetName;
 
@@ -548,15 +519,8 @@ class AssetGenImage {
     );
   }
 
-  ImageProvider provider({
-    AssetBundle? bundle,
-    String? package,
-  }) {
-    return AssetImage(
-      _assetName,
-      bundle: bundle,
-      package: package,
-    );
+  ImageProvider provider({AssetBundle? bundle, String? package}) {
+    return AssetImage(_assetName, bundle: bundle, package: package);
   }
 
   String get path => _assetName;

@@ -3,20 +3,21 @@ import os
 
 import firebase_admin
 from fastapi import FastAPI
-
+import os
+print("Loaded BASE_API_URL:", os.getenv("BASE_API_URL"))
 from modal import Image, App, asgi_app, Secret
 from routers import (
     workflow,
-    chat,
+    # chat,  # Temporarily disabled - requires Opus library
     firmware,
     plugins,
-    transcribe,
+    # transcribe,  # Temporarily disabled - requires Opus library
     notifications,
     speech_profile,
     agents,
     users,
     trends,
-    sync,
+    # sync,  # Temporarily disabled - requires Opus library
     apps,
     custom_auth,
     payment,
@@ -39,11 +40,11 @@ else:
 
 app = FastAPI()
 
-app.include_router(transcribe.router)
+# app.include_router(transcribe.router)  # Temporarily disabled - requires Opus
 app.include_router(conversations.router)
 app.include_router(action_items.router)
 app.include_router(memories.router)
-app.include_router(chat.router)
+# app.include_router(chat.router)  # Temporarily disabled - requires Opus
 app.include_router(plugins.router)
 app.include_router(speech_profile.router)
 # app.include_router(screenpipe.router)
@@ -55,7 +56,7 @@ app.include_router(users.router)
 app.include_router(trends.router)
 
 app.include_router(firmware.router)
-app.include_router(sync.router)
+# app.include_router(sync.router)  # Temporarily disabled - requires Opus
 
 app.include_router(apps.router)
 app.include_router(custom_auth.router)
