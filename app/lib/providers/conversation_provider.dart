@@ -5,6 +5,7 @@ import 'package:omi/backend/http/api/conversations.dart';
 import 'package:omi/backend/preferences.dart';
 import 'package:omi/backend/schema/conversation.dart';
 import 'package:omi/backend/schema/structured.dart';
+import 'package:omi/env/env.dart';
 import 'package:omi/services/services.dart';
 import 'package:omi/services/wals.dart';
 import 'package:omi/utils/analytics/mixpanel.dart';
@@ -246,6 +247,11 @@ class ConversationProvider extends ChangeNotifier implements IWalServiceListener
     searchedConversations = [];
 
     setLoadingConversations(true);
+    
+    // Debug: Add auth status logging
+    debugPrint('DEBUG: Starting fetchConversations...');
+    debugPrint('DEBUG: API Base URL: ${Env.apiBaseUrl}');
+    
     conversations = await _getConversationsFromServer();
     setLoadingConversations(false);
 

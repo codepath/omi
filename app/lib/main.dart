@@ -43,10 +43,10 @@ import 'package:omi/utils/alerts/app_snackbar.dart';
 import 'package:omi/utils/analytics/growthbook.dart';
 import 'package:omi/utils/logger.dart';
 import 'package:omi/utils/debug_log_manager.dart';
-// import 'package:instabug_flutter/instabug_flutter.dart';
+// import 'package:instabug_flutter/instabug_flutter.dart'; // Commented out - not in pubspec
 import 'package:omi/utils/platform/platform_service.dart';
-// import 'package:opus_dart/opus_dart.dart';
-// import 'package:opus_flutter/opus_flutter.dart' as opus_flutter;
+import 'package:opus_dart/opus_dart.dart';
+import 'package:opus_flutter/opus_flutter.dart' as opus_flutter;
 import 'package:posthog_flutter/posthog_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:talker_flutter/talker_flutter.dart';
@@ -78,8 +78,7 @@ Future<bool> _init() async {
 
   bool isAuth = (await getIdToken()) != null;
   if (isAuth) PlatformManager.instance.mixpanel.identify();
-  // Opus initialization - temporarily disabled due to NDK path issues
-  // if (PlatformService.isMobile) initOpus(await opus_flutter.load());
+  if (PlatformService.isMobile) initOpus(await opus_flutter.load());
 
   await GrowthbookUtil.init();
   if (!PlatformService.isWindows) {
@@ -122,45 +121,48 @@ void main() async {
     }
   }
 
-  FlutterForegroundTask.initCommunicationPort();
+  // Initialize foreground task communication port (only on mobile)
+  if (!PlatformService.isDesktop) {
+    try {
+      FlutterForegroundTask.initCommunicationPort();
+    } catch (e) {
+      debugPrint('Foreground task communication port initialization failed (non-fatal): $e');
+    }
+  }
+  
   if (Env.posthogApiKey != null && !PlatformService.isDesktop) {
     await initPostHog();
   }
   // _setupAudioSession();
 
   bool isAuth = await _init();
-  // Instabug initialization - temporarily disabled due to dependency issues
-  /*
-  if (Env.instabugApiKey != null) {
-    await PlatformManager.instance.instabug.setWelcomeMessageMode(WelcomeMessageMode.disabled);
-    runZonedGuarded(
-      () async {
-        await InstabugManager.init(
-          token: Env.instabugApiKey!,
-          invocationEvents: [InvocationEvent.none],
-        );
-        if (isAuth) {
-          PlatformManager.instance.instabug.identifyUser(
-            FirebaseAuth.instance.currentUser?.email ?? '',
-            SharedPreferencesUtil().fullName,
-            SharedPreferencesUtil().uid,
-          );
-        }
-        FlutterError.onError = (FlutterErrorDetails details) {
-          Zone.current.handleUncaughtError(details.exception, details.stack ?? StackTrace.empty);
-        };
-        PlatformManager.instance.instabug.setColorTheme(ColorTheme.dark);
-        runApp(const MyApp());
-      },
-      CrashReporting.reportCrash,
-    );
-  } else {
+  // Instabug commented out - not in pubspec
+  // if (Env.instabugApiKey != null) {
+  //   await PlatformManager.instance.instabug.setWelcomeMessageMode(WelcomeMessageMode.disabled);
+  //   runZonedGuarded(
+  //     () async {
+  //       await InstabugManager.init(
+  //         token: Env.instabugApiKey!,
+  //         invocationEvents: [InvocationEvent.none],
+  //       );
+  //       if (isAuth) {
+  //         PlatformManager.instance.instabug.identifyUser(
+  //           FirebaseAuth.instance.currentUser?.email ?? '',
+  //           SharedPreferencesUtil().fullName,
+  //           SharedPreferencesUtil().uid,
+  //         );
+  //       }
+  //       FlutterError.onError = (FlutterErrorDetails details) {
+  //         Zone.current.handleUncaughtError(details.exception, details.stack ?? StackTrace.empty);
+  //       };
+  //       PlatformManager.instance.instabug.setColorTheme(ColorTheme.dark);
+  //       runApp(const MyApp());
+  //     },
+  //     CrashReporting.reportCrash,
+  //   );
+  // } else {
     runApp(const MyApp());
-  }
-  */
-  
-  // Simplified version without Instabug
-  runApp(const MyApp());
+  // }
 }
 
 class MyApp extends StatefulWidget {

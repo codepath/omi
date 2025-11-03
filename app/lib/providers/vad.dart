@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter_silero_vad/flutter_silero_vad.dart';
 import 'package:omi/utils/audio/wav_bytes.dart';
-// import 'package:opus_dart/opus_dart.dart';
+import 'package:opus_dart/opus_dart.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// A service that processes audio data and performs Voice Activity Detection (VAD) using the Silero VAD model.
@@ -61,8 +61,7 @@ class AudioProcessorService {
   Future<String> get modelPath async => '${(await getApplicationSupportDirectory()).path}/silero_vad.onnx';
 
   /// Opus decoder instance
-  // Opus decoder temporarily disabled due to NDK path issues
-  // late SimpleOpusDecoder opusDecoder;
+  late SimpleOpusDecoder opusDecoder;
   final validFrames = <int>[];
 
   /// Initializes the VAD model and prepares the service for processing audio data.
@@ -76,8 +75,7 @@ class AudioProcessorService {
       minSilenceDurationMs: 100,
       speechPadMs: 0,
     );
-    // Opus decoder initialization temporarily disabled due to NDK path issues
-    // opusDecoder = SimpleOpusDecoder(sampleRate: sampleRate, channels: 1);
+    opusDecoder = SimpleOpusDecoder(sampleRate: sampleRate, channels: 1);
     isInited = true;
 
     // processedAudioSubscription = processedAudioStreamController.stream.listen((buffer) async {
@@ -101,8 +99,7 @@ class AudioProcessorService {
     if (buffer.isEmpty) return;
 
     // print('Opus Buffer Size: ${buffer.length} bytes');
-    // Opus decoding temporarily disabled due to NDK path issues
-    // buffer = opusDecoder.decode(input: Uint8List.fromList(buffer.sublist(3))); // decode opus
+    buffer = opusDecoder.decode(input: Uint8List.fromList(buffer.sublist(3))); // decode opus
     frameBuffer.addAll(buffer);
 
     // int frameByteSize = frameSize * 2 * sampleRate ~/ 1000; // frameSize in bytes

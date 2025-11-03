@@ -90,8 +90,8 @@ class _UsagePageState extends State<UsagePage> with TickerProviderStateMixin {
   Future<void> _handleUpgradeWithSelectedPlan() async {
     final bool isYearly = selectedPlan == 'yearly';
     final String priceId = isYearly
-        ? 'price_1RtJQ71F8wnoWYvwKMPaGlGY' // Annual plan
-        : 'price_1RtJPm1F8wnoWYvwhVJ38kLb'; // Monthly plan
+        ? 'price_1SPKdJE3eFsUy3AYt5IDu4He' // Annual plan (using monthly for now - no annual exists)
+        : 'price_1SPKdJE3eFsUy3AYt5IDu4He'; // Monthly plan (dev/test - $19/month)
 
     await _handleUpgrade(priceId);
   }
@@ -112,14 +112,16 @@ class _UsagePageState extends State<UsagePage> with TickerProviderStateMixin {
       if (selectedPrice != null) break;
     }
 
-    if (selectedPrice == null) {
+    // Only show error if we're expecting plans but didn't find the price
+    // If available_plans is empty, we're using hardcoded price IDs and should proceed
+    if (selectedPrice == null && plans.isNotEmpty) {
       AppSnackbar.showSnackbarError('Selected plan is not available. Please try again.');
       return;
     }
 
     final currentSub = provider.subscription!.subscription;
 
-    if (currentSub.plan == PlanType.unlimited) {
+    if (currentSub.plan == PlanType.unlimited && selectedPrice != null) {
       final description = "You're switching your Unlimited Plan to the ${selectedPrice.title}.";
 
       final confirmed = await showDialog<bool>(

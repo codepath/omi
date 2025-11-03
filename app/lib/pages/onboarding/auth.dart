@@ -133,13 +133,17 @@ class _AuthComponentState extends State<AuthComponent> {
                       height: 56,
                       child: ElevatedButton(
                         onPressed: () {
+                          debugPrint('DEBUG: Google Sign-In button pressed');
                           HapticFeedback.mediumImpact();
                           ConsentBottomSheet.show(
                             context,
                             authMethod: 'google',
                             onContinue: () async {
+                              debugPrint('DEBUG: ConsentBottomSheet onContinue called for Google');
                               final user = FirebaseAuth.instance.currentUser;
+                              debugPrint('DEBUG: Current user check - user: ${user?.uid}, isAnonymous: ${user?.isAnonymous}, hasPersonaCreated: ${SharedPreferencesUtil().hasPersonaCreated}');
                               if (user != null && user.isAnonymous && SharedPreferencesUtil().hasPersonaCreated) {
+                                debugPrint('DEBUG: Linking with Google (anonymous user with persona)');
                                 await provider.linkWithGoogle();
                                 if (mounted) {
                                   SharedPreferencesUtil().hasOmiDevice = true;
@@ -147,6 +151,7 @@ class _AuthComponentState extends State<AuthComponent> {
                                   widget.onSignIn();
                                 }
                               } else {
+                                debugPrint('DEBUG: Calling provider.onGoogleSignIn()');
                                 provider.onGoogleSignIn(widget.onSignIn);
                               }
                             },

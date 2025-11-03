@@ -89,16 +89,25 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> with TickerProvid
       //   context.read<OnboardingProvider>().updatePermissions();
       // }
 
+      debugPrint('DEBUG: OnboardingWrapper initState - isSignedIn: ${isSignedIn()}');
+      debugPrint('DEBUG: OnboardingWrapper initState - currentUser: ${FirebaseAuth.instance.currentUser?.uid}');
+      debugPrint('DEBUG: OnboardingWrapper initState - onboardingCompleted: ${SharedPreferencesUtil().onboardingCompleted}');
+      
       if (isSignedIn()) {
         // && !SharedPreferencesUtil().onboardingCompleted
+        debugPrint('DEBUG: User is signed in, routing to appropriate page');
         if (mounted) {
           context.read<HomeProvider>().setupHasSpeakerProfile();
           if (SharedPreferencesUtil().onboardingCompleted) {
+            debugPrint('DEBUG: Onboarding completed, routing to HomePageWrapper');
             routeToPage(context, const HomePageWrapper(), replace: true);
           } else {
+            debugPrint('DEBUG: Onboarding not completed, routing to Name page');
             _controller!.animateTo(kNamePage);
           }
         }
+      } else {
+        debugPrint('DEBUG: User is NOT signed in, staying at Auth page (index 0)');
       }
       // If not signed in, it stays at the Auth page (index 0)
     });

@@ -98,11 +98,6 @@ android {
         multiDexEnabled true
         buildConfigField("String", "INTERCOM_APP_ID", "\"${System.getenv("intercom.app.id")}\"")
         buildConfigField("String", "INTERCOM_ANDROID_API_KEY", "\"${System.getenv("intercom.android.api.key")}\"")
-        
-        // Exclude arm64 architecture to avoid NDK path issues with spaces
-        ndk {
-            abiFilters 'x86_64', 'armeabi-v7a'
-        }
     }
 
     signingConfigs {
@@ -145,7 +140,7 @@ android {
         }
     }
 
-    ndkVersion System.getenv()["NDK_VERSION"] ?: "27.0.12077973"
+    ndkVersion System.getenv()["NDK_VERSION"] ?: "28.2.13676358"
 }
 
 flutter {

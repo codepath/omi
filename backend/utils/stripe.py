@@ -13,6 +13,30 @@ base_url = os.getenv('BASE_API_URL')
 if base_url and not base_url.startswith(('http://', 'https://')):
     base_url = 'https://' + base_url
 
+# Debug print to verify configuration on startup
+if not stripe.api_key:
+    print("WARNING: STRIPE_API_KEY is not set!")
+else:
+    # Check if using test or live mode
+    if stripe.api_key.startswith('sk_test_'):
+        print("INFO: Using Stripe TEST mode")
+        # List all available prices in test mode for debugging
+        try:
+            prices = stripe.Price.list(limit=10, active=True)
+            print(f"INFO: Found {len(prices.data)} active prices in Stripe:")
+            for price in prices.data:
+                print(f"  - {price.id}: ${price.unit_amount/100 if price.unit_amount else 0}/{price.recurring.interval if price.recurring else 'one-time'}")
+        except Exception as e:
+            print(f"WARNING: Could not list Stripe prices: {e}")
+    elif stripe.api_key.startswith('sk_live_'):
+        print("INFO: Using Stripe LIVE mode")
+    else:
+        print("WARNING: Unknown Stripe API key format")
+if not base_url:
+    print("WARNING: BASE_API_URL is not set!")
+else:
+    print(f"Stripe configured with base_url: {base_url}")
+
 
 def create_product(name: str, description: str, image: str):
     """Create a new product in Stripe."""
@@ -36,8 +60,18 @@ def create_app_monthly_recurring_price(product_id: str, amount_in_cents: int, cu
 def create_subscription_checkout_session(uid: str, price_id: str):
     """Create a Stripe Checkout session for a subscription."""
     try:
+        if not base_url:
+            print(f"ERROR: BASE_API_URL is not configured. Cannot create checkout session.")
+            return None
+        if not stripe.api_key:
+            print(f"ERROR: STRIPE_API_KEY is not configured. Cannot create checkout session.")
+            return None
+            
         success_url = urljoin(base_url, 'v1/payments/success?session_id={CHECKOUT_SESSION_ID}')
         cancel_url = urljoin(base_url, 'v1/payments/cancel')
+        print(f"Creating Stripe checkout session for uid={uid}, price_id={price_id}")
+        print(f"Success URL: {success_url}, Cancel URL: {cancel_url}")
+        
         checkout_session = stripe.checkout.Session.create(
             client_reference_id=uid,
             payment_method_types=['card'],
@@ -50,10 +84,14 @@ def create_subscription_checkout_session(uid: str, price_id: str):
             mode='subscription',
             success_url=success_url,
             cancel_url=cancel_url,
+            allow_promotion_codes=True,
         )
+        print(f"Checkout session created successfully: {checkout_session.id}")
         return checkout_session
     except Exception as e:
         print(f"Error creating checkout session: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 

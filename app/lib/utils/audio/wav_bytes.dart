@@ -8,7 +8,7 @@ import 'package:omi/backend/schema/bt_device/bt_device.dart';
 import 'package:omi/utils/logger.dart';
 import 'package:intl/intl.dart';
 import 'package:omi/utils/platform/platform_manager.dart';
-// import 'package:opus_dart/opus_dart.dart';
+import 'package:opus_dart/opus_dart.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:tuple/tuple.dart';
 
@@ -87,8 +87,7 @@ class WavBytesUtil {
   int framesPerSecond;
   List<List<int>> frames = [];
   List<List<int>> rawPackets = [];
-  // Opus decoder temporarily disabled due to NDK path issues
-  // final SimpleOpusDecoder opusDecoder = SimpleOpusDecoder(sampleRate: 16000, channels: 1);
+  final SimpleOpusDecoder opusDecoder = SimpleOpusDecoder(sampleRate: 16000, channels: 1);
 
   WavBytesUtil({required this.codec, required this.framesPerSecond});
 
@@ -284,8 +283,6 @@ class WavBytesUtil {
       // Int16List samples = getMulawSamples(frames);
       // wavBytes = getUInt8ListBytes(samples, codec == BleAudioCodec.mulaw8 ? 8000 : 16000);
     } else if (codec.isOpusSupported()) {
-      // Opus decoding temporarily disabled due to NDK path issues
-      /*
       List<int> decodedSamples = [];
       try {
         for (var frame in frames) {
@@ -294,8 +291,6 @@ class WavBytesUtil {
       } catch (e) {
         Logger.handle(e, StackTrace.current, message: 'Error decoding audio. Please check your device and try again.');
       }
-      */
-      List<int> decodedSamples = []; // Placeholder - opus decoding disabled
 
       wavBytes = getUInt8ListBytes(decodedSamples, 16000);
     } else {
@@ -546,13 +541,10 @@ class StorageBytesUtil extends WavBytesUtil {
   Future<File> createWavByCodec(List<List<int>> frames, {String? filename}) async {
     Uint8List wavBytes;
 
-    // Opus decoding temporarily disabled due to NDK path issues
-    List<int> decodedSamples = []; // Placeholder - opus decoding disabled
-    /*
+    List<int> decodedSamples = [];
     for (var frame in frames) {
       decodedSamples.addAll(opusDecoder.decode(input: Uint8List.fromList(frame)));
     }
-    */
     wavBytes = WavBytesUtil.getUInt8ListBytes(decodedSamples, 16000);
     return createWav(wavBytes);
   }

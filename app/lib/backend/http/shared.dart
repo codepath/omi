@@ -9,25 +9,41 @@ import 'package:http/http.dart' as http;
 import 'package:omi/utils/platform/platform_manager.dart';
 
 Future<String> getAuthHeader() async {
+  debugPrint('DEBUG: getAuthHeader called');
   DateTime? expiry = DateTime.fromMillisecondsSinceEpoch(SharedPreferencesUtil().tokenExpirationTime);
   bool hasAuthToken = SharedPreferencesUtil().authToken.isNotEmpty;
+  
+  debugPrint('DEBUG: hasAuthToken: $hasAuthToken');
+  debugPrint('DEBUG: tokenExpirationTime: ${SharedPreferencesUtil().tokenExpirationTime}');
+  debugPrint('DEBUG: expiry: $expiry');
 
   bool isExpirationDateValid = !(expiry.isBefore(DateTime.now()) ||
       expiry.isAtSameMomentAs(DateTime.fromMillisecondsSinceEpoch(0)) ||
       (expiry.isBefore(DateTime.now().add(const Duration(minutes: 5))) && expiry.isAfter(DateTime.now())));
 
+  debugPrint('DEBUG: isExpirationDateValid: $isExpirationDateValid');
+
   if (!hasAuthToken || !isExpirationDateValid) {
+    debugPrint('DEBUG: Token refresh needed, calling getIdToken()...');
     SharedPreferencesUtil().authToken = await getIdToken() ?? '';
+    debugPrint('DEBUG: Token refresh result: ${SharedPreferencesUtil().authToken.isNotEmpty ? "SUCCESS" : "FAILED"}');
   }
 
+  hasAuthToken = SharedPreferencesUtil().authToken.isNotEmpty;
+  
   if (!hasAuthToken) {
+    debugPrint('DEBUG: No auth token available');
     if (isSignedIn()) {
       // should only throw if the user is signed in but the token is not found
       // if the user is not signed in, the token will always be empty
+      debugPrint('DEBUG: User is signed in but no token found - throwing exception');
       throw Exception('No auth token found');
     }
   }
-  return 'Bearer ${SharedPreferencesUtil().authToken}';
+  
+  String header = 'Bearer ${SharedPreferencesUtil().authToken}';
+  debugPrint('DEBUG: Returning auth header, length: ${header.length}');
+  return header;
 }
 
 Future<http.Response?> makeApiCall({
@@ -37,18 +53,32 @@ Future<http.Response?> makeApiCall({
   required String method,
 }) async {
   try {
+    debugPrint('DEBUG: ========== API CALL ==========');
+    debugPrint('DEBUG: Request URL: $url');
+    debugPrint('DEBUG: API Base URL: ${Env.apiBaseUrl}');
+    debugPrint('DEBUG: Stored token exists: ${SharedPreferencesUtil().authToken.isNotEmpty}');
+    debugPrint('DEBUG: Stored token length: ${SharedPreferencesUtil().authToken.length}');
+    
     if (url.contains(Env.apiBaseUrl!)) {
       headers['Authorization'] = await getAuthHeader();
+      debugPrint('DEBUG: Auth header added, token length: ${headers['Authorization']?.length ?? 0}');
       // headers['Authorization'] = ''; // set admin key + uid here for testing
     }
 
     final client = http.Client();
 
     http.Response? response = await _performRequest(client, url, headers, body, method);
+    debugPrint('DEBUG: Initial response status: ${response.statusCode}');
+    
     if (response.statusCode == 401) {
       Logger.log('Token expired on 1st attempt');
+      debugPrint('DEBUG: 401 received, attempting token refresh...');
+      
       // Refresh the token
       SharedPreferencesUtil().authToken = await getIdToken() ?? '';
+      debugPrint('DEBUG: New token obtained: ${SharedPreferencesUtil().authToken.isNotEmpty ? "SUCCESS" : "FAILED"}');
+      debugPrint('DEBUG: Token length: ${SharedPreferencesUtil().authToken.length}');
+      
       if (SharedPreferencesUtil().authToken.isNotEmpty) {
         // Update the header with the new token
         headers['Authorization'] = 'Bearer ${SharedPreferencesUtil().authToken}';
@@ -56,14 +86,18 @@ Future<http.Response?> makeApiCall({
         response = await _performRequest(client, url, headers, body, method);
         Logger.log('Token refreshed and request retried');
         if (response.statusCode == 401) {
-          // Force user to sign in again
-          await signOut();
+          // Only sign out if user is actually signed in
+          if (isSignedIn()) {
+            await signOut();
+          }
           Logger.handle(Exception('Authentication failed. Please sign in again.'), StackTrace.current,
               message: 'Authentication failed. Please sign in again.');
         }
       } else {
-        // Force user to sign in again
-        await signOut();
+        // Only sign out if user is actually signed in
+        if (isSignedIn()) {
+          await signOut();
+        }
         Logger.handle(Exception('Authentication failed. Please sign in again.'), StackTrace.current,
             message: 'Authentication failed. Please sign in again.');
       }

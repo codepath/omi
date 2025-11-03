@@ -11,6 +11,7 @@ r = redis.Redis(
     username='default',
     password=os.getenv('REDIS_DB_PASSWORD'),
     health_check_interval=30,
+    ssl=True
 )
 
 

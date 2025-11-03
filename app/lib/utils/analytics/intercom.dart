@@ -44,6 +44,7 @@ class IntercomManager {
   }
 
   Future loginIdentifiedUser(String uid) async {
+    if (Env.intercomAppId == null) return;
     return PlatformService.executeIfSupportedAsync(
       PlatformService.isIntercomSupported,
       () => intercom.loginIdentifiedUser(userId: uid),
@@ -86,6 +87,7 @@ class IntercomManager {
   }
 
   Future updateUser(String? email, String? name, String? uid) async {
+    if (Env.intercomAppId == null) return;
     return PlatformService.executeIfSupportedAsync(
       PlatformService.isIntercomSupported,
       () => intercom.updateUser(

@@ -17,6 +17,7 @@ class AuthenticationProvider extends BaseProvider {
   String? authToken;
   bool _loading = false;
   bool get loading => _loading;
+  bool _refreshingToken = false;
 
   AuthenticationProvider() {
     _initializeAuthListeners();
@@ -27,8 +28,14 @@ class AuthenticationProvider extends BaseProvider {
       _auth.authStateChanges().distinct((p, n) => p?.uid == n?.uid).listen((User? user) {
         this.user = user;
         SharedPreferencesUtil().uid = user?.uid ?? '';
-        SharedPreferencesUtil().email = user?.email ?? '';
-        SharedPreferencesUtil().givenName = user?.displayName?.split(' ')[0] ?? '';
+        
+        // Only update email and name if they're not already set
+        if (SharedPreferencesUtil().email.isEmpty && user?.email != null) {
+          SharedPreferencesUtil().email = user!.email ?? '';
+        }
+        if (SharedPreferencesUtil().givenName.isEmpty && user?.displayName != null) {
+          SharedPreferencesUtil().givenName = user!.displayName!.split(' ')[0];
+        }
       });
       _auth.idTokenChanges().distinct((p, n) => p?.uid == n?.uid).listen((User? user) async {
         if (user == null) {
@@ -38,12 +45,22 @@ class AuthenticationProvider extends BaseProvider {
         } else {
           debugPrint('User is signed in at ${DateTime.now()} with user ${user.uid}');
           try {
+            // Prevent recursive token refresh calls
+            if (_refreshingToken) {
+              debugPrint('DEBUG: Token refresh already in progress, skipping');
+              notifyListeners();
+              return;
+            }
+            
             if (SharedPreferencesUtil().authToken.isEmpty ||
                 DateTime.now().millisecondsSinceEpoch > SharedPreferencesUtil().tokenExpirationTime) {
+              _refreshingToken = true;
               authToken = await backend_auth.getIdToken();
+              _refreshingToken = false;
             }
           } catch (e) {
             authToken = null;
+            _refreshingToken = false;
             debugPrint('Failed to get token: $e');
           }
         }
@@ -60,15 +77,38 @@ class AuthenticationProvider extends BaseProvider {
   }
 
   Future<void> onGoogleSignIn(Function() onSignIn) async {
+    debugPrint('DEBUG: onGoogleSignIn called - loading: $loading');
     if (!loading) {
       setLoadingState(true);
-      await backend_auth.signInWithGoogle();
-      if (isSignedIn()) {
-        _signIn(onSignIn);
-      } else {
-        AppSnackbar.showSnackbarError('Failed to sign in with Google, please try again.');
+      debugPrint('DEBUG: Calling backend_auth.signInWithGoogle()...');
+      try {
+        final result = await backend_auth.signInWithGoogle();
+        debugPrint('DEBUG: signInWithGoogle returned: ${result != null ? "SUCCESS" : "NULL"}');
+        debugPrint('DEBUG: result.user?.uid: ${result?.user?.uid}');
+        debugPrint('DEBUG: Firebase currentUser after signInWithGoogle: ${_auth.currentUser?.uid}');
+        debugPrint('DEBUG: isSignedIn() after signInWithGoogle: ${isSignedIn()}');
+        
+        // Wait a moment for auth state to settle
+        await Future.delayed(const Duration(milliseconds: 500));
+        debugPrint('DEBUG: After delay, isSignedIn(): ${isSignedIn()}');
+        debugPrint('DEBUG: After delay, currentUser: ${_auth.currentUser?.uid}');
+        
+        if (isSignedIn()) {
+          debugPrint('DEBUG: User is signed in, calling _signIn()');
+          _signIn(onSignIn);
+        } else {
+          debugPrint('DEBUG: User is NOT signed in after Google sign-in, showing error');
+          AppSnackbar.showSnackbarError('Failed to sign in with Google, please try again.');
+        }
+      } catch (e, stackTrace) {
+        debugPrint('DEBUG: Exception during Google sign-in: $e');
+        debugPrint('DEBUG: StackTrace: $stackTrace');
+        AppSnackbar.showSnackbarError('Failed to sign in with Google: $e');
+      } finally {
+        setLoadingState(false);
       }
-      setLoadingState(false);
+    } else {
+      debugPrint('DEBUG: onGoogleSignIn skipped - already loading');
     }
   }
 
@@ -101,13 +141,20 @@ class AuthenticationProvider extends BaseProvider {
   }
 
   void _signIn(Function() onSignIn) async {
+    debugPrint('DEBUG: _signIn called');
+    debugPrint('DEBUG: Current Firebase user before _getIdToken: ${_auth.currentUser?.uid}');
+    
     String? token = await _getIdToken();
+    debugPrint('DEBUG: _getIdToken returned token length: ${token?.length ?? 0}');
+    debugPrint('DEBUG: Current Firebase user after _getIdToken: ${_auth.currentUser?.uid}');
 
     if (token != null) {
       User user;
       try {
         user = FirebaseAuth.instance.currentUser!;
+        debugPrint('DEBUG: Got user from Firebase: ${user.uid}');
       } catch (e, stackTrace) {
+        debugPrint('DEBUG: Exception getting currentUser: $e');
         AppSnackbar.showSnackbarError('Unexpected error signing in, Firebase error, please try again.');
 
         PlatformManager.instance.instabug.reportCrash(e, stackTrace);
@@ -115,9 +162,12 @@ class AuthenticationProvider extends BaseProvider {
       }
       String newUid = user.uid;
       SharedPreferencesUtil().uid = newUid;
+      debugPrint('DEBUG: Saved uid to SharedPreferences: $newUid');
       MixpanelManager().identify();
+      debugPrint('DEBUG: Calling onSignIn callback');
       onSignIn();
     } else {
+      debugPrint('DEBUG: Token is null, showing error');
       AppSnackbar.showSnackbarError('Unexpected error signing in, please try again');
     }
   }

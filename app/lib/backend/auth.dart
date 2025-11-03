@@ -154,18 +154,30 @@ Future<UserCredential?> signInWithApple() async {
 
 Future<UserCredential?> signInWithGoogle() async {
   try {
-    debugPrint('Signing in with Google');
+    debugPrint('DEBUG: ========== signInWithGoogle START ==========');
+    debugPrint('DEBUG: Platform check - kIsWeb: $kIsWeb, isDesktop: ${PlatformService.isDesktop}');
 
     // Platform-specific Google Sign In implementation
+    UserCredential? result;
     if (kIsWeb || PlatformService.isDesktop) {
-      // Use google_sign_in_all_platforms for Windows, macOS and Web
-      return await _signInWithGoogleAllPlatforms();
+      debugPrint('DEBUG: Using google_sign_in_all_platforms');
+      result = await _signInWithGoogleAllPlatforms();
     } else {
-      // Use standard google_sign_in for iOS, Android
-      return await _signInWithGoogleStandard();
+      debugPrint('DEBUG: Using standard google_sign_in for Android/iOS');
+      result = await _signInWithGoogleStandard();
     }
-  } catch (e) {
-    debugPrint('Failed to sign in with Google: $e');
+    
+    debugPrint('DEBUG: signInWithGoogle result: ${result != null ? "SUCCESS" : "NULL"}');
+    if (result != null) {
+      debugPrint('DEBUG: result.user.uid: ${result.user?.uid}');
+      debugPrint('DEBUG: result.user.email: ${result.user?.email}');
+      debugPrint('DEBUG: Firebase currentUser.uid: ${FirebaseAuth.instance.currentUser?.uid}');
+    }
+    debugPrint('DEBUG: ========== signInWithGoogle END ==========');
+    return result;
+  } catch (e, stackTrace) {
+    debugPrint('DEBUG: EXCEPTION in signInWithGoogle: $e');
+    debugPrint('DEBUG: StackTrace: $stackTrace');
     Logger.handle(e, null, message: 'An error occurred while signing in. Please try again later.');
     return null;
   }
@@ -203,7 +215,17 @@ Future<UserCredential?> _signInWithGoogleStandard() async {
 
   // Once signed in, return the UserCredential
   var result = await FirebaseAuth.instance.signInWithCredential(credential);
-  return _processGoogleSignInResult(result);
+  debugPrint('Firebase signInWithCredential result: ${result.user?.uid}');
+  debugPrint('Firebase user email: ${result.user?.email}');
+  debugPrint('Firebase user immediately after sign-in: ${FirebaseAuth.instance.currentUser?.uid}');
+  
+  // Wait a moment for auth state to propagate
+  await Future.delayed(const Duration(milliseconds: 200));
+  debugPrint('Firebase user after delay: ${FirebaseAuth.instance.currentUser?.uid}');
+  
+  var processedResult = await _processGoogleSignInResult(result);
+  debugPrint('After processing, Firebase currentUser: ${FirebaseAuth.instance.currentUser?.uid}');
+  return processedResult;
 }
 
 /// Google Sign In using google_sign_in_all_platforms (Windows, macOS, Web)
@@ -299,18 +321,44 @@ Future<UserCredential?> _retryGoogleSignInWithFreshAuth() async {
 
 /// Process the Google Sign In result for standard platforms and update user preferences
 Future<UserCredential?> _processGoogleSignInResult(UserCredential result) async {
+  // Ensure the user is persisted by reloading it
+  if (result.user != null) {
+    try {
+      await result.user!.reload();
+      debugPrint('DEBUG: User reloaded after sign-in: ${result.user!.uid}');
+    } catch (e) {
+      debugPrint('DEBUG: Failed to reload user after sign-in: $e');
+    }
+  }
+  
   var givenName = result.additionalUserInfo?.profile?['given_name'] ?? '';
   var familyName = result.additionalUserInfo?.profile?['family_name'] ?? '';
   var email = result.additionalUserInfo?.profile?['email'] ?? '';
+  
+  debugPrint('DEBUG: additionalUserInfo profile: ${result.additionalUserInfo?.profile}');
+  debugPrint('DEBUG: Firebase user displayName: ${result.user?.displayName}');
+  debugPrint('DEBUG: Firebase user email: ${result.user?.email}');
 
-  if (email != null) SharedPreferencesUtil().email = email;
-  if (givenName != null) {
+  // If user info is not available from additionalUserInfo, try to get it from the Firebase user
+  if (email.isEmpty) {
+    email = result.user?.email ?? '';
+  }
+  if (givenName.isEmpty) {
+    var displayName = result.user?.displayName ?? '';
+    var nameParts = displayName.split(' ');
+    givenName = nameParts.isNotEmpty ? nameParts[0] : '';
+    familyName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+  }
+
+  if (email.isNotEmpty) SharedPreferencesUtil().email = email;
+  if (givenName.isNotEmpty) {
     SharedPreferencesUtil().givenName = givenName;
     SharedPreferencesUtil().familyName = familyName;
   }
 
-  debugPrint('signInWithGoogle Email: ${SharedPreferencesUtil().email}');
-  debugPrint('signInWithGoogle Name: ${SharedPreferencesUtil().givenName}');
+  debugPrint('DEBUG: signInWithGoogle Email: ${SharedPreferencesUtil().email}');
+  debugPrint('DEBUG: signInWithGoogle Name: ${SharedPreferencesUtil().givenName}');
+  debugPrint('DEBUG: After processing, Firebase currentUser: ${FirebaseAuth.instance.currentUser?.uid}');
 
   // Bring app to front after successful authentication
   _bringAppToFront();
@@ -354,28 +402,80 @@ Future<UserCredential?> _processGoogleSignInResultAllPlatforms(
 
 Future<String?> getIdToken() async {
   try {
-    IdTokenResult? newToken = await FirebaseAuth.instance.currentUser?.getIdTokenResult(true);
-    if (newToken?.token != null) {
-      var user = FirebaseAuth.instance.currentUser!;
-      SharedPreferencesUtil().uid = user.uid;
-      SharedPreferencesUtil().tokenExpirationTime = newToken?.expirationTime?.millisecondsSinceEpoch ?? 0;
-      SharedPreferencesUtil().authToken = newToken?.token ?? '';
-      if (SharedPreferencesUtil().email.isEmpty) {
-        SharedPreferencesUtil().email = user.email ?? '';
-      }
-
-      if (SharedPreferencesUtil().givenName.isEmpty) {
-        SharedPreferencesUtil().givenName = user.displayName?.split(' ')[0] ?? '';
-        if ((user.displayName?.split(' ').length ?? 0) > 1) {
-          SharedPreferencesUtil().familyName = user.displayName?.split(' ')[1] ?? '';
-        } else {
-          SharedPreferencesUtil().familyName = '';
+    // Wait for auth state to settle if needed
+    await Future.delayed(const Duration(milliseconds: 100));
+    
+    // Debug: Check Firebase auth status
+    var currentUser = FirebaseAuth.instance.currentUser;
+    debugPrint('DEBUG: Current Firebase user: ${currentUser?.uid}');
+    debugPrint('DEBUG: User email: ${currentUser?.email}');
+    debugPrint('DEBUG: Is anonymous: ${currentUser?.isAnonymous}');
+    debugPrint('DEBUG: Is signed in: ${isSignedIn()}');
+    
+    // If currentUser is null, wait for auth state to settle and retry once
+    if (currentUser == null) {
+      debugPrint('DEBUG: currentUser is null, waiting for auth state...');
+      
+      // Try to wait for the first non-null auth state change
+      try {
+        await FirebaseAuth.instance.authStateChanges()
+          .where((user) => user != null)
+          .first
+          .timeout(const Duration(seconds: 3));
+        debugPrint('DEBUG: Auth state change detected with non-null user');
+      } catch (e) {
+        debugPrint('DEBUG: Auth state timeout or no user found: $e');
+        // If no user found, try reloading the auth state
+        try {
+          await FirebaseAuth.instance.currentUser?.reload();
+          debugPrint('DEBUG: Attempted to reload currentUser');
+        } catch (reloadError) {
+          debugPrint('DEBUG: Failed to reload user: $reloadError');
         }
+      }
+      
+      // Recheck currentUser after waiting
+      currentUser = FirebaseAuth.instance.currentUser;
+      debugPrint('DEBUG: After wait, currentUser: ${currentUser?.uid}');
+      
+      // If still null, wait a bit more and check again
+      if (currentUser == null) {
+        debugPrint('DEBUG: currentUser still null, waiting additional time...');
+        await Future.delayed(const Duration(milliseconds: 500));
+        currentUser = FirebaseAuth.instance.currentUser;
+        debugPrint('DEBUG: Final currentUser check: ${currentUser?.uid}');
+      }
+    }
+    
+    IdTokenResult? newToken = await currentUser?.getIdTokenResult(true);
+    debugPrint('DEBUG: Token refresh result: ${newToken?.token != null ? "SUCCESS" : "FAILED"}');
+    debugPrint('DEBUG: Token expiration: ${newToken?.expirationTime}');
+    
+    if (newToken?.token != null) {
+      var user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        SharedPreferencesUtil().uid = user.uid;
+        SharedPreferencesUtil().tokenExpirationTime = newToken?.expirationTime?.millisecondsSinceEpoch ?? 0;
+        SharedPreferencesUtil().authToken = newToken?.token ?? '';
+        if (SharedPreferencesUtil().email.isEmpty) {
+          SharedPreferencesUtil().email = user.email ?? '';
+        }
+
+        if (SharedPreferencesUtil().givenName.isEmpty) {
+          SharedPreferencesUtil().givenName = user.displayName?.split(' ')[0] ?? '';
+          if ((user.displayName?.split(' ').length ?? 0) > 1) {
+            SharedPreferencesUtil().familyName = user.displayName?.split(' ')[1] ?? '';
+          } else {
+            SharedPreferencesUtil().familyName = '';
+          }
+        }
+      } else {
+        debugPrint('DEBUG: newToken obtained but currentUser is null!');
       }
     }
     return newToken?.token;
   } catch (e) {
-    debugPrint(e.toString());
+    debugPrint('getIdToken error: $e');
     return SharedPreferencesUtil().authToken;
   }
 }
@@ -399,6 +499,18 @@ Future<void> signOut() async {
 }
 
 bool isSignedIn() => FirebaseAuth.instance.currentUser != null && !FirebaseAuth.instance.currentUser!.isAnonymous;
+
+// Debug method to clear auth state
+Future<void> clearAuthState() async {
+  debugPrint('DEBUG: Clearing auth state...');
+  SharedPreferencesUtil().authToken = '';
+  SharedPreferencesUtil().tokenExpirationTime = 0;
+  SharedPreferencesUtil().uid = '';
+  SharedPreferencesUtil().email = '';
+  SharedPreferencesUtil().givenName = '';
+  SharedPreferencesUtil().familyName = '';
+  debugPrint('DEBUG: Auth state cleared');
+}
 
 getFirebaseUser() {
   return FirebaseAuth.instance.currentUser;
