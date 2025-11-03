@@ -196,3 +196,14 @@ omiGlass/.expo
 /backend/logs/
 app/.fvm/
 app/android/.kotlin/
+
+# Ignore Python virtual environments
+.venv
+.venv*/
+venv
+venv*/
+backend/.venvOMI/
+
+# Ignore common Python cache files
+__pycache__/
+*.pyc
