@@ -333,44 +333,44 @@ class _ConversationDetailPageState extends State<ConversationDetailPage> with Ti
                           itemBuilder: (context) => [
                             PullDownMenuItem(
                               title: 'Copy Transcript',
-                              iconWidget: FaIcon(FontAwesomeIcons.copy, size: 16),
+                              iconWidget: const FaIcon(FontAwesomeIcons.copy, size: 16),
                               onTap: () => _handleMenuSelection(context, 'copy_transcript', provider),
                             ),
                             PullDownMenuItem(
                               title: 'Copy Summary',
-                              iconWidget: FaIcon(FontAwesomeIcons.clone, size: 16),
+                              iconWidget: const FaIcon(FontAwesomeIcons.clone, size: 16),
                               onTap: () => _handleMenuSelection(context, 'copy_summary', provider),
                             ),
                             PullDownMenuItem(
                               title: 'Export Transcript',
-                              iconWidget: FaIcon(FontAwesomeIcons.download, size: 16),
+                              iconWidget: const FaIcon(FontAwesomeIcons.download, size: 16),
                               onTap: () => _handleMenuSelection(context, 'export_transcript', provider),
                             ),
                             if (!provider.conversation.discarded)
                               PullDownMenuItem(
                                 title: 'Export Summary',
-                                iconWidget: FaIcon(FontAwesomeIcons.fileExport, size: 16),
+                                iconWidget: const FaIcon(FontAwesomeIcons.fileExport, size: 16),
                                 onTap: () => _handleMenuSelection(context, 'export_summary', provider),
                               ),
                             PullDownMenuItem(
                               title: 'Copy Raw Transcript',
-                              iconWidget: FaIcon(FontAwesomeIcons.fileCode, size: 16),
+                              iconWidget: const FaIcon(FontAwesomeIcons.fileCode, size: 16),
                               onTap: () => _handleMenuSelection(context, 'copy_conversation_raw', provider),
                             ),
                             PullDownMenuItem(
                               title: 'Trigger Integration',
-                              iconWidget: FaIcon(FontAwesomeIcons.paperPlane, size: 16),
+                              iconWidget: const FaIcon(FontAwesomeIcons.paperPlane, size: 16),
                               onTap: () => _handleMenuSelection(context, 'trigger_integration', provider),
                             ),
                             PullDownMenuItem(
                               title: 'Test Prompt',
-                              iconWidget: FaIcon(FontAwesomeIcons.commentDots, size: 16),
+                              iconWidget: const FaIcon(FontAwesomeIcons.commentDots, size: 16),
                               onTap: () => _handleMenuSelection(context, 'test_prompt', provider),
                             ),
                             if (!provider.conversation.discarded)
                               PullDownMenuItem(
                                 title: 'Reprocess Conversation',
-                                iconWidget: FaIcon(FontAwesomeIcons.arrowsRotate, size: 16),
+                                iconWidget: const FaIcon(FontAwesomeIcons.arrowsRotate, size: 16),
                                 onTap: () => _handleMenuSelection(context, 'reprocess', provider),
                               ),
                           ],
