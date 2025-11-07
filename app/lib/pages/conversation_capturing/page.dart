@@ -10,9 +10,6 @@ import 'package:omi/providers/connectivity_provider.dart';
 import 'package:omi/providers/device_provider.dart';
 import 'package:omi/utils/enums.dart';
 import 'package:omi/widgets/confirmation_dialog.dart';
-import 'package:omi/widgets/conversation_bottom_bar.dart';
-import 'package:omi/widgets/photos_grid.dart';
-import 'package:omi/providers/people_provider.dart';
 
 
 import 'package:provider/provider.dart';
