@@ -52,6 +52,7 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
 
   bool _showVoiceRecorder = false;
   bool _isInitialLoad = true;
+  bool _isInputValid = false;
 
   var prefs = SharedPreferencesUtil();
   late List<App> apps;
@@ -66,6 +67,14 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
     apps = prefs.appsList;
     scrollController = ScrollController();
     textFieldFocusNode = FocusNode();
+    textController.addListener(() {
+      final bool nextValid = textController.text.trim().isNotEmpty;
+      if (nextValid != _isInputValid) {
+        setState(() {
+          _isInputValid = nextValid;
+        });
+      }
+    });
 
     scrollController.addListener(() {
       if (scrollController.position.userScrollDirection == ScrollDirection.reverse) {
@@ -539,12 +548,12 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                               !shouldShowSendButton(provider)
                                   ? const SizedBox.shrink()
                                   : GestureDetector(
-                                      onTap: provider.sendingMessage || provider.isUploadingFiles
+                                      onTap: (provider.sendingMessage || provider.isUploadingFiles || !_isInputValid)
                                           ? null
                                           : () {
                                               HapticFeedback.mediumImpact(); // Changed from lightImpact to mediumImpact
                                               String message = textController.text;
-                                              if (message.isEmpty) return;
+                                              if (message.trim().isEmpty) return;
                                               if (connectivityProvider.isConnected) {
                                                 _sendMessageUtil(message);
                                               } else {
@@ -561,7 +570,9 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                                         height: 32,
                                         width: 32,
                                         decoration: BoxDecoration(
-                                          color: Colors.white,
+                                          color: (provider.sendingMessage || provider.isUploadingFiles || !_isInputValid)
+                                              ? Colors.white.withOpacity(0.4)
+                                              : Colors.white,
                                           borderRadius: BorderRadius.circular(22),
                                           boxShadow: [
                                             BoxShadow(
@@ -571,9 +582,11 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                                             ),
                                           ],
                                         ),
-                                        child: const Icon(
+                                        child: Icon(
                                           FontAwesomeIcons.arrowUp,
-                                          color: Color(0xFF35343B),
+                                          color: (provider.sendingMessage || provider.isUploadingFiles || !_isInputValid)
+                                              ? const Color(0xFF35343B).withOpacity(0.6)
+                                              : const Color(0xFF35343B),
                                           size: 18,
                                         ),
                                       ),
@@ -1016,7 +1029,7 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
             ],
           ),
         );
-      }).toList(),
+      }),
     ];
   }
 
