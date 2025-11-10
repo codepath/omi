@@ -3,7 +3,7 @@ description: A new Flutter project.
 
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.64+318
+version: 1.0.71+413
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -14,6 +14,7 @@ dependencies:
 
   # State Management
   provider: ^6.1.2
+  connectivity_plus: ^6.0.3
   flutter_provider_utilities: ^1.0.6
 
 
@@ -35,26 +36,29 @@ dependencies:
   dotted_border: ^2.1.0
   skeletonizer: 2.0.1
   shimmer: ^3.0.0
-  siri_wave: 2.3.0
   pull_down_button: ^0.10.2
 
   # Firebase
   firebase_core: 3.13.0
   firebase_auth: 5.5.3
   firebase_messaging: 15.2.5
+  firebase_crashlytics: 4.3.2
 
   # Auth
+  flutter_web_auth_2: 5.0.0-alpha.3
   google_sign_in: 6.2.2
-  google_sign_in_all_platforms: 1.2.0
+  sign_in_with_apple: ^6.1.1
 
   # Analytics and Support
   intercom_flutter: 9.3.3
   mixpanel_flutter: ^2.4.4
-  posthog_flutter: ^5.0.0
   mixpanel_analytics:
     git:
       url: https://github.com/mdmohsin7/mixpanel_analytics.git
       ref: master
+
+  # Logging
+  talker_flutter: 5.0.0
 
   # Utils
   collection: ^1.19.1
@@ -64,7 +68,7 @@ dependencies:
   pdf: ^3.11.0
   intl: 0.20.2
   permission_handler: ^12.0.0+1
-  share_plus: 10.1.4
+  share_plus: 11.0.0
   shared_preferences: 2.5.3
   url_launcher: ^6.3.0
   wav: ^1.4.0
@@ -75,13 +79,13 @@ dependencies:
   envied: 1.1.1
   awesome_notifications_core: ^0.9.3
   awesome_notifications: any
-  instabug_flutter: ^14.3.1
   nordic_dfu: ^6.1.4+hotfix
   mcumgr_flutter: ^0.4.2
   flutter_archive: ^6.0.3
   json_annotation: ^4.9.0
-  json_serializable: 6.8.0
+  json_serializable: ^6.9.5
   package_info_plus: ^8.0.1
+  device_info_plus: ^11.5.0
   path_provider: 2.1.5
   flutter_foreground_task: 9.1.0
   upgrader: 11.4.0
@@ -94,7 +98,6 @@ dependencies:
   opus_dart: ^3.0.1
   growthbook_sdk_flutter: 3.9.2
   flutter_timezone: 3.0.1
-  sign_in_with_apple: ^6.1.1
   cached_network_image: 3.4.1
   map_launcher: ^3.5.0
   internet_connection_checker_plus: ^2.7.2
@@ -106,10 +109,6 @@ dependencies:
   video_player: ^2.8.2
   frame_sdk: ^0.0.7
   web_socket_channel: ^3.0.3
-  talker_flutter: 4.5.0
-  flutter_silero_vad:
-    git:
-      url: https://github.com/char5742/flutter_silero_vad.git
   image_picker: ^1.1.2
   timeago: ^3.7.0
   app_links: ^6.3.2
@@ -119,10 +118,10 @@ dependencies:
   font_awesome_flutter: ^10.8.0
   in_app_review: ^2.0.9
   fl_chart: ^0.68.0
+  image: ^4.3.0
 
 dependency_overrides:
   uuid: ^4.4.0
-  google_sign_in_ios: 5.7.5
   opus_flutter_ios:
     git:
       url: https://github.com/mdmohsin7/opus_flutter.git
@@ -135,8 +134,8 @@ dependency_overrides:
 
 dev_dependencies:
   flutter_launcher_icons: 0.13.1
+  google_sign_in_ios: 5.7.5
   flutter_lints: ^4.0.0
-  image: ^4.2.0
   integration_test:
     sdk: flutter
   lints: ^4.0.0
@@ -157,16 +156,14 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  config:
+    enable-swift-package-manager: false
   assets:
     - assets/images/blob.png
     - assets/images/stars.png
     - assets/images/herologo.png
     - assets/fonts/
     - assets/images/
-    - assets/lottie_animations/
-    - assets/pdfs/
-    - assets/silero_vad.onnx
-    - assets/silero_vad.v5.onnx
     - shorebird.yaml
     - assets/device_assets/frame_lib.lua
   fonts:

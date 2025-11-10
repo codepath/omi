@@ -9,8 +9,6 @@ abstract class Env {
 
   static String? get openAIAPIKey => _instance.openAIAPIKey;
 
-  static String? get instabugApiKey => _instance.instabugApiKey;
-
   static String? get mixpanelProjectToken => _instance.mixpanelProjectToken;
 
   static String? get apiBaseUrl => _instance.apiBaseUrl;
@@ -25,8 +23,6 @@ abstract class Env {
 
   static String? get intercomAndroidApiKey => _instance.intercomAndroidApiKey;
 
-  static String? get posthogApiKey => _instance.posthogApiKey;
-
   static String? get googleClientId => _instance.googleClientId;
 
   static String? get googleClientSecret => _instance.googleClientSecret;
@@ -34,8 +30,6 @@ abstract class Env {
 
 abstract class EnvFields {
   String? get openAIAPIKey;
-
-  String? get instabugApiKey;
 
   String? get mixpanelProjectToken;
 
@@ -50,8 +44,6 @@ abstract class EnvFields {
   String? get intercomIOSApiKey;
 
   String? get intercomAndroidApiKey;
-
-  String? get posthogApiKey;
 
   String? get googleClientId;
 

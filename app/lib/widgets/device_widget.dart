@@ -56,13 +56,16 @@ class _DeviceAnimationWidgetState extends State<DeviceAnimationWidget> with Tick
                     builder: (context, child) {
                       return Image.asset(
                         Assets.images.blob.path,
-                        height: (MediaQuery.sizeOf(context).height <= 700 ? 360 : 390) * widget.sizeMultiplier * _animation.value,
-                        width: (MediaQuery.sizeOf(context).height <= 700 ? 360 : 390) * widget.sizeMultiplier * _animation.value,
+                        height: (MediaQuery.sizeOf(context).height <= 700 ? 360 : 390) *
+                            widget.sizeMultiplier *
+                            _animation.value,
+                        width: (MediaQuery.sizeOf(context).height <= 700 ? 360 : 390) *
+                            widget.sizeMultiplier *
+                            _animation.value,
                       );
                     },
                   )
                 : Container(),
-            // Image.asset("assets/images/blob.png"),
             _buildDeviceImage()
           ],
         ),
@@ -81,7 +84,7 @@ class _DeviceAnimationWidgetState extends State<DeviceAnimationWidget> with Tick
         children: [
           // Bottom layer: turned-off image (always visible)
           Image.asset(
-            'assets/images/omi-without-rope-turned-off.png',
+            Assets.images.omiWithoutRopeTurnedOff.path,
             height: imageHeight,
             width: imageWidth,
           ),
@@ -90,7 +93,7 @@ class _DeviceAnimationWidgetState extends State<DeviceAnimationWidget> with Tick
             opacity: widget.isConnected ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 300),
             child: Image.asset(
-              'assets/images/omi-without-rope.png',
+              Assets.images.omiWithoutRope.path,
               height: imageHeight,
               width: imageWidth,
             ),
@@ -110,16 +113,16 @@ class _DeviceAnimationWidgetState extends State<DeviceAnimationWidget> with Tick
   String _getImagePath() {
     // Show device image for both connected and paired devices
     if (widget.deviceName != null && widget.deviceName!.contains('Glass')) {
-      return 'assets/images/omi-glass.png';
+      return Assets.images.omiGlass.path;
     }
 
     if (widget.deviceName != null && widget.deviceName!.contains('Omi DevKit')) {
-      return 'assets/images/omi-devkit-without-rope.png';
+      return Assets.images.omiDevkitWithoutRope.path;
     }
 
     // Default to omi device image, fallback to hero logo only if no device name
     if (widget.deviceName != null && widget.deviceName!.isNotEmpty) {
-      return 'assets/images/omi-without-rope.png';
+      return Assets.images.omiWithoutRope.path;
     }
 
     return Assets.images.herologo.path;

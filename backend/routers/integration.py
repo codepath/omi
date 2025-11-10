@@ -277,6 +277,10 @@ async def get_memories_via_integration(
         raise HTTPException(status_code=403, detail="App does not have the capability to read memories")
 
     memories = memory_db.get_memories(uid, limit=limit, offset=offset)
+    for memory in memories:
+        if memory.get('is_locked', False):
+            content = memory.get('content', '')
+            memory['content'] = (content[:70] + '...') if len(content) > 70 else content
     memory_items = [integration_models.MemoryItem(**fact) for fact in memories]
 
     return {"memories": memory_items}
@@ -343,18 +347,28 @@ async def get_conversations_via_integration(
     # Convert string dates to datetime objects if needed
     if isinstance(start_date, str) and start_date:
         try:
-            start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            if len(start_date) == 10:  # YYYY-MM-DD
+                dt = datetime.strptime(start_date, '%Y-%m-%d')
+                start_date = dt.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+            else:
+                start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
         except ValueError:
             raise HTTPException(
-                status_code=400, detail="Invalid start_date format. Use ISO format (YYYY-MM-DDTHH:MM:SS.sssZ)"
+                status_code=400,
+                detail="Invalid start_date format. Use ISO format (YYYY-MM-DDTHH:MM:SS.sssZ) or YYYY-MM-DD",
             )
 
     if isinstance(end_date, str) and end_date:
         try:
-            end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            if len(end_date) == 10:  # YYYY-MM-DD
+                dt = datetime.strptime(end_date, '%Y-%m-%d')
+                end_date = dt.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc)
+            else:
+                end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
         except ValueError:
             raise HTTPException(
-                status_code=400, detail="Invalid end_date format. Use ISO format (YYYY-MM-DDTHH:MM:SS.sssZ)"
+                status_code=400,
+                detail="Invalid end_date format. Use ISO format (YYYY-MM-DDTHH:MM:SS.sssZ) or YYYY-MM-DD",
             )
 
     conversations_data = conversations_db.get_conversations(
@@ -371,6 +385,14 @@ async def get_conversations_via_integration(
     conversation_items = []
     for conv in conversations_data:
         try:
+            if conv.get('is_locked', False):
+                conv['structured']['action_items'] = []
+                conv['structured']['events'] = []
+                conv['transcript_segments'] = []
+                conv['apps_results'] = []
+                conv['plugins_results'] = []
+                conv['suggested_summarization_apps'] = []
+
             item = integration_models.ConversationItem.parse_obj(conv)
 
             # Limit transcript segments
@@ -442,10 +464,34 @@ async def search_conversations_via_integration(
     end_timestamp = None
 
     if search_request.start_date:
-        start_timestamp = int(datetime.fromisoformat(search_request.start_date).timestamp())
+        try:
+            start_date_str = search_request.start_date
+            if len(start_date_str) == 10:  # YYYY-MM-DD
+                dt = datetime.strptime(start_date_str, '%Y-%m-%d')
+                start_dt = dt.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+            else:
+                start_dt = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
+            start_timestamp = int(start_dt.timestamp())
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid start_date format. Use ISO format (YYYY-MM-DDTHH:MM:SS.sssZ) or YYYY-MM-DD",
+            )
 
     if search_request.end_date:
-        end_timestamp = int(datetime.fromisoformat(search_request.end_date).timestamp())
+        try:
+            end_date_str = search_request.end_date
+            if len(end_date_str) == 10:  # YYYY-MM-DD
+                dt = datetime.strptime(end_date_str, '%Y-%m-%d')
+                end_dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc)
+            else:
+                end_dt = datetime.fromisoformat(end_date_str.replace('Z', '+00:00'))
+            end_timestamp = int(end_dt.timestamp())
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid end_date format. Use ISO format (YYYY-MM-DDTHH:MM:SS.sssZ) or YYYY-MM-DD",
+            )
 
     # Search conversations
     search_results = search_conversations(
@@ -470,6 +516,14 @@ async def search_conversations_via_integration(
     conversation_items = []
     for conv in full_conversations:
         try:
+            if conv.get('is_locked', False):
+                conv['structured']['action_items'] = []
+                conv['structured']['events'] = []
+                conv['transcript_segments'] = []
+                conv['apps_results'] = []
+                conv['plugins_results'] = []
+                conv['suggested_summarization_apps'] = []
+
             item = integration_models.ConversationItem.parse_obj(conv)
 
             # Limit transcript segments

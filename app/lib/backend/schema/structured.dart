@@ -98,14 +98,16 @@ class ActionItem {
   String description;
   bool completed = false;
   bool deleted = false;
+  DateTime? dueDate;
 
-  ActionItem(this.description, {this.id = 0, this.completed = false, this.deleted = false});
+  ActionItem(this.description, {this.id = 0, this.completed = false, this.deleted = false, this.dueDate});
 
   static fromJson(Map<String, dynamic> json) {
-    return ActionItem(json['description'], completed: json['completed'] ?? false, deleted: json['deleted'] ?? false);
+    DateTime? dueDateMil = DateTime.fromMillisecondsSinceEpoch(json['dueDate']);
+    return ActionItem(json['description'], completed: json['completed'] ?? false, deleted: json['deleted'], dueDate:json['dueDate'] ?? false);
   }
 
-  toJson() => {'description': description, 'completed': completed, 'deleted': deleted};
+  toJson() => {'description': description, 'completed': completed, 'deleted': deleted, dueDate: dueDate ?? false};
 }
 
 class AppResponse {

@@ -4,8 +4,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:nordic_dfu/nordic_dfu.dart';
+import 'package:omi/backend/http/shared.dart';
 import 'package:omi/backend/schema/bt_device/bt_device.dart';
-import 'package:omi/http/api/device.dart';
+import 'package:omi/backend/http/api/device.dart';
 import 'package:omi/providers/device_provider.dart';
 import 'package:omi/utils/device.dart';
 import 'package:omi/utils/manifest/manifest.dart';
@@ -164,8 +165,15 @@ mixin FirmwareMixin<T extends StatefulWidget> on State<T> {
           installProgress = percent.toInt();
         });
       },
-      onError: (deviceAddress, error, errorType, message) =>
-          debugPrint('deviceAddress: $deviceAddress, error: $error, errorType: $errorType, message: $message'),
+      onError: (deviceAddress, error, errorType, message) {
+        debugPrint('deviceAddress: $deviceAddress, error: $error, errorType: $errorType, message: $message');
+        setState(() {
+          isInstalling = false;
+        });
+        // Reset firmware update state on error
+        final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
+        deviceProvider.resetFirmwareUpdateState();
+      },
       onDeviceConnecting: (deviceAddress) => debugPrint('deviceAddress: $deviceAddress, onDeviceConnecting'),
       onDeviceConnected: (deviceAddress) => debugPrint('deviceAddress: $deviceAddress, onDeviceConnected'),
       onDfuProcessStarting: (deviceAddress) => debugPrint('deviceAddress: $deviceAddress, onDfuProcessStarting'),
@@ -210,12 +218,16 @@ mixin FirmwareMixin<T extends StatefulWidget> on State<T> {
     final zipUrl = latestFirmwareDetails['zip_url'];
     if (zipUrl == null) {
       debugPrint('Error: zip_url is null in latestFirmwareDetails');
+      setState(() {
+        isDownloading = false;
+      });
+      // Reset firmware update state on error
+      final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
+      deviceProvider.resetFirmwareUpdateState();
       return;
     }
 
-    var httpClient = http.Client();
-    var request = http.Request('GET', Uri.parse(zipUrl));
-    var response = httpClient.send(request);
+    var response = makeRawApiCall(method: 'GET', url: zipUrl);
     String dir = (await getApplicationDocumentsDirectory()).path;
 
     List<List<int>> chunks = [];
@@ -251,7 +263,23 @@ mixin FirmwareMixin<T extends StatefulWidget> on State<T> {
           isDownloaded = true;
         });
         return;
+      }, onError: (error) {
+        debugPrint('Download error: $error');
+        setState(() {
+          isDownloading = false;
+        });
+        // Reset firmware update state on error
+        final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
+        deviceProvider.resetFirmwareUpdateState();
       });
+    }, onError: (error) {
+      debugPrint('Download error: $error');
+      setState(() {
+        isDownloading = false;
+      });
+      // Reset firmware update state on error
+      final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
+      deviceProvider.resetFirmwareUpdateState();
     });
   }
 }

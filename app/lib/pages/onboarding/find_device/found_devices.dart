@@ -2,8 +2,8 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_provider_utilities/flutter_provider_utilities.dart';
 import 'package:omi/backend/schema/bt_device/bt_device.dart';
+import 'package:omi/providers/device_provider.dart';
 import 'package:omi/providers/onboarding_provider.dart';
-import 'package:omi/widgets/dialog.dart';
 import 'package:omi/gen/assets.gen.dart';
 import 'package:provider/provider.dart';
 
@@ -25,16 +25,21 @@ class _FoundDevicesState extends State<FoundDevices> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (mounted) {
+        context.read<DeviceProvider>().periodicConnect('coming from FoundDevices');
+      }
+    });
   }
 
   String _getDeviceImagePath(String deviceName) {
     if (deviceName.contains('Glass')) {
-      return 'assets/images/omi-glass.png';
+      return Assets.images.omiGlass.path;
     }
     if (deviceName.contains('Omi DevKit')) {
-      return 'assets/images/omi-devkit-without-rope.png';
+      return Assets.images.omiDevkitWithoutRope.path;
     }
-    return 'assets/images/omi-without-rope.png';
+    return Assets.images.omiWithoutRope.path;
   }
 
   @override
@@ -69,7 +74,9 @@ class _FoundDevicesState extends State<FoundDevices> {
           children: [
             !provider.isConnected
                 ? Text(
-                    provider.deviceList.isEmpty ? 'Searching for devices...' : '${provider.deviceList.length} ${provider.deviceList.length == 1 ? "DEVICE" : "DEVICES"} FOUND NEARBY',
+                    provider.deviceList.isEmpty
+                        ? 'Searching for devices...'
+                        : '${provider.deviceList.length} ${provider.deviceList.length == 1 ? "DEVICE" : "DEVICES"} FOUND NEARBY',
                     style: const TextStyle(
                       fontWeight: FontWeight.w400,
                       fontSize: 14,

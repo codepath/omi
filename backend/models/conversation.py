@@ -94,7 +94,9 @@ class ActionItem(BaseModel):
     updated_at: Optional[datetime] = Field(default=None, description="When the action item was last updated")
     due_at: Optional[datetime] = Field(default=None, description="When the action item is due")
     completed_at: Optional[datetime] = Field(default=None, description="When the action item was completed")
-    conversation_id: Optional[str] = Field(default=None, description="ID of the conversation this action item came from")
+    conversation_id: Optional[str] = Field(
+        default=None, description="ID of the conversation this action item came from"
+    )
 
     @staticmethod
     def actions_to_string(action_items: List['ActionItem']) -> str:
@@ -233,6 +235,7 @@ class Conversation(BaseModel):
     photos: List[ConversationPhoto] = []
 
     apps_results: List[AppResult] = []
+    suggested_summarization_apps: List[str] = []
 
     # TODO: plugins_results for backward compatibility with the old memories routes and app
     plugins_results: List[PluginResult] = []
@@ -249,6 +252,7 @@ class Conversation(BaseModel):
     processing_conversation_id: Optional[str] = None
 
     status: Optional[ConversationStatus] = ConversationStatus.completed
+    is_locked: bool = False
     data_protection_level: Optional[str] = None
 
     def __init__(self, **data):
@@ -391,6 +395,9 @@ class ExternalIntegrationCreateConversation(BaseModel):
 
     def get_transcript(self, include_timestamps: bool) -> str:
         return self.text
+
+    def get_person_ids(self) -> List[str]:
+        return []
 
 
 class CreateConversationResponse(BaseModel):

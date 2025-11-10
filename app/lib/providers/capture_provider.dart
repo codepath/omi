@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_provider_utilities/flutter_provider_utilities.dart';
-import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
 import 'package:omi/backend/http/api/conversations.dart';
 import 'package:omi/backend/preferences.dart';
 import 'package:omi/backend/schema/bt_device/bt_device.dart';
@@ -21,20 +19,18 @@ import 'package:omi/providers/conversation_provider.dart';
 import 'package:omi/providers/message_provider.dart';
 import 'package:omi/providers/people_provider.dart';
 import 'package:omi/providers/usage_provider.dart';
-import 'package:omi/services/devices.dart';
-import 'package:omi/services/notifications.dart';
+import 'package:omi/services/connectivity_service.dart';
 import 'package:omi/services/services.dart';
-import 'package:omi/services/sockets/pure_socket.dart';
-import 'package:omi/services/sockets/sdcard_socket.dart';
 import 'package:omi/services/sockets/transcription_connection.dart';
 import 'package:omi/services/wals.dart';
 import 'package:omi/utils/alerts/app_snackbar.dart';
 import 'package:omi/utils/analytics/mixpanel.dart';
+import 'package:omi/utils/debug_log_manager.dart';
 import 'package:omi/utils/enums.dart';
+import 'package:omi/utils/image/image_utils.dart';
 import 'package:omi/utils/logger.dart';
 import 'package:omi/utils/platform/platform_service.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:omi/utils/debug_log_manager.dart';
 
 class CaptureProvider extends ChangeNotifier
     with MessageNotifierMixin, WidgetsBindingObserver
@@ -45,23 +41,23 @@ class CaptureProvider extends ChangeNotifier
   UsageProvider? usageProvider;
 
   TranscriptSegmentSocketService? _socket;
-  SdCardSocketService sdCardSocket = SdCardSocketService();
   Timer? _keepAliveTimer;
+  DateTime? _keepAliveLastExecutedAt;
 
   // Method channel for system audio permissions
-  static const MethodChannel _screenCaptureChannel = MethodChannel('screenCapturePlatform');
+  static late MethodChannel _screenCaptureChannel;
+  static late MethodChannel _controlBarChannel;
 
   IWalService get _wal => ServiceManager.instance().wal;
 
-  IDeviceService get _deviceService => ServiceManager.instance().device;
   bool _isWalSupported = false;
 
   bool get isWalSupported => _isWalSupported;
 
-  StreamSubscription<InternetStatus>? _internetStatusListener;
-  InternetStatus? _internetStatus;
+  StreamSubscription<bool>? _connectionStateListener;
+  bool _isConnected = ConnectivityService().isConnected;
 
-  get internetStatus => _internetStatus;
+  get isConnected => _isConnected;
 
   String? microphoneName;
   double microphoneLevel = 0.0;
@@ -70,12 +66,16 @@ class CaptureProvider extends ChangeNotifier
   bool _isAutoReconnecting = false;
   bool get isAutoReconnecting => _isAutoReconnecting;
 
-  DateTime? _lastUsageLimitDialogShown;
   bool get outOfCredits => usageProvider?.isOutOfCredits ?? false;
 
   Timer? _reconnectTimer;
   int _reconnectCountdown = 5;
   int get reconnectCountdown => _reconnectCountdown;
+
+  Timer? _recordingTimer;
+  int _recordingDuration = 0; // in seconds
+
+  int _getRecordingDuration() => _recordingDuration;
 
   List<MessageEvent> _transcriptionServiceStatuses = [];
   List<MessageEvent> get transcriptionServiceStatuses => _transcriptionServiceStatuses;
@@ -84,18 +84,23 @@ class CaptureProvider extends ChangeNotifier
   bool _systemAudioCaching = true;
 
   CaptureProvider() {
-    _internetStatusListener = PureCore().internetConnection.onStatusChange.listen((InternetStatus status) {
-      onInternetSatusChanged(status);
+    _connectionStateListener = ConnectivityService().onConnectionChange.listen((bool isConnected) {
+      onConnectionStateChanged(isConnected);
     });
 
-    // Add app lifecycle listener to detect sleep/wake cycles
     if (PlatformService.isDesktop) {
+      _screenCaptureChannel = const MethodChannel('screenCapturePlatform');
+      _controlBarChannel = const MethodChannel('com.omi/floating_control_bar');
+
       _initializeAppLifecycleListener();
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _controlBarChannel.setMethodCallHandler(_handleFloatingControlBarMethodCall);
+      });
     }
   }
 
   void _initializeAppLifecycleListener() {
-    // Add this instance as a lifecycle observer
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -164,50 +169,7 @@ class CaptureProvider extends ChangeNotifier
 
   bool _transcriptServiceReady = false;
 
-  // Audio level tracking for waveform visualization
-  final List<double> _audioLevels = List.generate(8, (_) => 0.15);
-  List<double> get audioLevels => List.from(_audioLevels);
-
-  void _processAudioBytesForVisualization(List<int> bytes) {
-    if (bytes.isEmpty) return;
-
-    double rms = 0;
-
-    // Process bytes as 16-bit samples (2 bytes per sample)
-    for (int i = 0; i < bytes.length - 1; i += 2) {
-      // Convert two bytes to a 16-bit signed integer
-      int sample = bytes[i] | (bytes[i + 1] << 8);
-
-      // Convert to signed value (if high bit is set)
-      if (sample > 32767) {
-        sample = sample - 65536;
-      }
-
-      // Square the sample and add to sum
-      rms += sample * sample;
-    }
-
-    // Calculate RMS and normalize to 0.0-1.0 range
-    int sampleCount = bytes.length ~/ 2;
-    if (sampleCount > 0) {
-      rms = math.sqrt(rms / sampleCount) / 32768.0;
-    } else {
-      rms = 0;
-    }
-
-    // Apply non-linear scaling for better dynamic range - quieter on silence, same on noise
-    final level = (math.pow(rms, 0.3).toDouble() * 2.1).clamp(0.15, 1.6);
-
-    // Shift all values left and add new level
-    for (int i = 0; i < _audioLevels.length - 1; i++) {
-      _audioLevels[i] = _audioLevels[i + 1];
-    }
-    _audioLevels[_audioLevels.length - 1] = level;
-
-    notifyListeners(); // Notify UI to update waveform
-  }
-
-  bool get transcriptServiceReady => _transcriptServiceReady && _internetStatus == InternetStatus.connected;
+  bool get transcriptServiceReady => _transcriptServiceReady && _isConnected;
 
   // having a connected device or using the phone's mic for recording
   bool get recordingDeviceServiceReady =>
@@ -258,7 +220,6 @@ class CaptureProvider extends ChangeNotifier
     int? channels,
     bool? isPcm,
   }) async {
-    print("changeAudioRecordProfile");
     await _resetState();
     await _initiateWebsocket(audioCodec: audioCodec, sampleRate: sampleRate, channels: channels, isPcm: isPcm);
   }
@@ -378,12 +339,10 @@ class CaptureProvider extends ChangeNotifier
         _commandBytes.add(snapshot.sublist(3));
       }
 
-      // Support: opus codec, 1m from the first device connects
-      var deviceFirstConnectedAt = _deviceService.getFirstConnectedAt();
+      // Local sync
+      // Support: opus codec
       var checkWalSupported = codec.isOpusSupported() &&
-          (deviceFirstConnectedAt != null &&
-              deviceFirstConnectedAt.isBefore(DateTime.now().subtract(const Duration(seconds: 15)))) &&
-          SharedPreferencesUtil().localSyncEnabled;
+          (_socket?.state != SocketServiceState.connected || SharedPreferencesUtil().unlimitedLocalStorageEnabled);
       if (checkWalSupported != _isWalSupported) {
         setIsWalSupported(checkWalSupported);
       }
@@ -391,15 +350,12 @@ class CaptureProvider extends ChangeNotifier
         _wal.getSyncs().phone.onByteStream(snapshot);
       }
 
-      // send ws
+      // Send WS
       if (_socket?.state == SocketServiceState.connected) {
         final trimmedValue = value.sublist(3);
         _socket?.send(trimmedValue);
 
-        // Process audio bytes for waveform visualization
-        _processAudioBytesForVisualization(trimmedValue);
-
-        // synced
+        // Mark as synced
         if (_isWalSupported) {
           _wal.getSyncs().phone.onBytesSync(value);
         }
@@ -424,7 +380,6 @@ class CaptureProvider extends ChangeNotifier
       }
     }
 
-    await initiateStorageBytesStreaming();
     notifyListeners();
   }
 
@@ -433,7 +388,6 @@ class CaptureProvider extends ChangeNotifier
     notifyListeners();
   }
 
-  // TODO: use connection directly
   Future<BleAudioCodec> _getAudioCodec(String deviceId) async {
     var connection = await ServiceManager.instance().device.ensureConnection(deviceId);
     if (connection == null) {
@@ -448,17 +402,6 @@ class CaptureProvider extends ChangeNotifier
       return false;
     }
     return connection.performPlayToSpeakerHaptic(level);
-  }
-
-  Future<StreamSubscription?> _getBleStorageBytesListener(
-    String deviceId, {
-    required void Function(List<int>) onStorageBytesReceived,
-  }) async {
-    var connection = await ServiceManager.instance().device.ensureConnection(deviceId);
-    if (connection == null) {
-      return Future.value(null);
-    }
-    return connection.getBleStorageBytesListener(onStorageBytesReceived: onStorageBytesReceived);
   }
 
   Future<StreamSubscription?> _getBleAudioBytesListener(
@@ -510,6 +453,13 @@ class CaptureProvider extends ChangeNotifier
     final deviceId = _recordingDevice!.id;
     BleAudioCodec codec = await _getAudioCodec(deviceId);
     await _wal.getSyncs().phone.onAudioCodecChanged(codec);
+
+    // Set device info for WAL creation
+    var connection = await ServiceManager.instance().device.ensureConnection(_recordingDevice!.id);
+    var pd = await _recordingDevice!.getDeviceInfo(connection);
+    String deviceModel = pd.modelNumber.isNotEmpty ? pd.modelNumber : "Omi";
+    _wal.getSyncs().phone.setDeviceInfo(_recordingDevice!.id, deviceModel);
+
     await streamButton(deviceId);
     await streamAudioToWs(deviceId, codec);
 
@@ -525,9 +475,10 @@ class CaptureProvider extends ChangeNotifier
     if (connection == null) return;
 
     await connection.performCameraStartPhotoController();
-    _blePhotoStream = await connection.performGetImageListener(onImageReceived: (photoBytes) async {
+    _blePhotoStream = await connection.performGetImageListener(onImageReceived: (orientedImage) async {
+      final rotatedImageBytes = rotateImage(orientedImage);
       final String tempId = 'temp_img_${DateTime.now().millisecondsSinceEpoch}';
-      final String base64Image = base64Encode(photoBytes);
+      final String base64Image = base64Encode(rotatedImageBytes);
 
       // Add placeholder to UI for immediate feedback
       photos.add(ConversationPhoto(id: tempId, base64: base64Image, createdAt: DateTime.now()));
@@ -584,7 +535,8 @@ class CaptureProvider extends ChangeNotifier
     _blePhotoStream?.cancel();
     _socket?.unsubscribe(this);
     _keepAliveTimer?.cancel();
-    _internetStatusListener?.cancel();
+    _connectionStateListener?.cancel();
+    _recordingTimer?.cancel();
 
     // Remove lifecycle observer
     if (PlatformService.isDesktop) {
@@ -597,6 +549,7 @@ class CaptureProvider extends ChangeNotifier
   void updateRecordingState(RecordingState state) {
     recordingState = state;
     notifyListeners();
+    _broadcastRecordingState();
   }
 
   streamRecording() async {
@@ -611,8 +564,6 @@ class CaptureProvider extends ChangeNotifier
       if (_socket?.state == SocketServiceState.connected) {
         _socket?.send(bytes);
       }
-      // Process audio bytes for waveform visualization
-      _processAudioBytesForVisualization(bytes);
     }, onRecording: () {
       updateRecordingState(RecordingState.record);
     }, onStop: () {
@@ -678,6 +629,7 @@ class CaptureProvider extends ChangeNotifier
           onByteReceived: _processSystemAudioByteReceived,
           onRecording: () {
             updateRecordingState(RecordingState.systemAudioRecord);
+            _startRecordingTimer();
             debugPrint('System audio recording started successfully.');
           },
           onStop: () {
@@ -814,6 +766,7 @@ class CaptureProvider extends ChangeNotifier
     _reconnectTimer = null;
     ServiceManager.instance().systemAudio.stop();
     _isPaused = false; // Clear paused state when stopping
+    _stopRecordingTimer();
     await _socket?.stop(reason: 'stop system audio recording from Flutter');
     await _cleanupCurrentState();
   }
@@ -828,12 +781,32 @@ class CaptureProvider extends ChangeNotifier
     ServiceManager.instance().systemAudio.stop();
     _isPaused = true; // Set paused state
     notifyListeners();
+    _broadcastRecordingState();
   }
 
   Future<void> resumeSystemAudioRecording() async {
     if (!PlatformService.isDesktop) return;
     _isPaused = false; // Clear paused state
     await streamSystemAudioRecording(); // Re-trigger the recording flow
+    _broadcastRecordingState();
+  }
+
+  Future<void> _handleFloatingControlBarMethodCall(MethodCall call) async {
+    if (!PlatformService.isDesktop) return;
+
+    switch (call.method) {
+      case 'togglePauseResume':
+        if (isPaused) {
+          await resumeSystemAudioRecording();
+        } else if (recordingState == RecordingState.systemAudioRecord) {
+          await pauseSystemAudioRecording();
+        } else {
+          await streamSystemAudioRecording();
+        }
+        break;
+      default:
+        Logger.debug('FloatingControlBarChannel: Unhandled method ${call.method}');
+    }
   }
 
   @override
@@ -854,11 +827,20 @@ class CaptureProvider extends ChangeNotifier
   void _startKeepAliveServices() {
     _keepAliveTimer?.cancel();
     _keepAliveTimer = Timer.periodic(const Duration(seconds: 15), (t) async {
-      debugPrint("[Provider] keep alive...");
+      debugPrint("[Provider] keep alive");
+      // rate 1/15s
+      if (_keepAliveLastExecutedAt != null &&
+          DateTime.now().subtract(const Duration(seconds: 15)).isBefore(_keepAliveLastExecutedAt!)) {
+        debugPrint("[Provider] keep alive - hitting rate limits 1/15s");
+        return;
+      }
+
+      _keepAliveLastExecutedAt = DateTime.now();
       if (!recordingDeviceServiceReady || _socket?.state == SocketServiceState.connected) {
         t.cancel();
         return;
       }
+
       if (_recordingDevice != null) {
         BleAudioCodec codec = await _getAudioCodec(_recordingDevice!.id);
         await _initiateWebsocket(audioCodec: codec);
@@ -1143,9 +1125,9 @@ class CaptureProvider extends ChangeNotifier
     notifyListeners();
   }
 
-  void onInternetSatusChanged(InternetStatus status) {
-    debugPrint("[SocketService] Internet connection changed $status");
-    _internetStatus = status;
+  void onConnectionStateChanged(bool isConnected) {
+    debugPrint("[CaptureProvider] Internet connection changed $isConnected");
+    _isConnected = isConnected;
     notifyListeners();
   }
 
@@ -1154,131 +1136,42 @@ class CaptureProvider extends ChangeNotifier
     notifyListeners();
   }
 
-  /*
-  *
-  *
-  *
-  *
-  *
-  * */
-
-  List<int> currentStorageFiles = <int>[];
-  int sdCardFileNum = 1;
-
-// To show the progress of the download in the UI
-  int currentTotalBytesReceived = 0;
-  double currentSdCardSecondsReceived = 0.0;
-//--------------------------------------------
-
-  int totalStorageFileBytes = 0; // how much in storage
-  int totalBytesReceived = 0; // how much already received
-  double sdCardSecondsTotal = 0.0; // time to send the next chunk
-  double sdCardSecondsReceived = 0.0;
-  bool sdCardDownloadDone = false;
-  bool sdCardReady = false;
-  bool sdCardIsDownloading = false;
-  String btConnectedTime = "";
-  Timer? sdCardReconnectionTimer;
-
-  void setSdCardIsDownloading(bool value) {
-    sdCardIsDownloading = value;
-    notifyListeners();
-  }
-
-  Future<void> updateStorageList() async {
-    currentStorageFiles = await _getStorageList(_recordingDevice!.id);
-    if (currentStorageFiles.isEmpty) {
-      debugPrint('No storage files found');
-      SharedPreferencesUtil().deviceIsV2 = false;
-      debugPrint('Device is not V2');
-      return;
-    }
-    totalStorageFileBytes = currentStorageFiles[0];
-    var storageOffset = currentStorageFiles.length < 2 ? 0 : currentStorageFiles[1];
-    totalBytesReceived = storageOffset;
-    notifyListeners();
-  }
-
-  Future<void> initiateStorageBytesStreaming() async {
-    debugPrint('initiateStorageBytesStreaming');
-    if (_recordingDevice == null) return;
-    String deviceId = _recordingDevice!.id;
-    var storageFiles = await _getStorageList(deviceId);
-    if (storageFiles.isEmpty) {
-      return;
-    }
-    var totalBytes = storageFiles[0];
-    if (totalBytes <= 0) {
-      return;
-    }
-    var storageOffset = storageFiles.length < 2 ? 0 : storageFiles[1];
-    if (storageOffset > totalBytes) {
-      // bad state?
-      debugPrint("SDCard bad state, offset > total");
-      storageOffset = 0;
-    }
-
-    // 80: frame length, 100: frame per seconds
-    BleAudioCodec codec = await _getAudioCodec(deviceId);
-    sdCardSecondsTotal = totalBytes / codec.getFramesLengthInBytes() / codec.getFramesPerSecond();
-    sdCardSecondsReceived = storageOffset / codec.getFramesLengthInBytes() / codec.getFramesPerSecond();
-
-    // > 10s
-    if (totalBytes - storageOffset > 10 * codec.getFramesLengthInBytes() * codec.getFramesPerSecond()) {
-      sdCardReady = true;
-    }
-
-    notifyListeners();
-  }
-
-  Future _getFileFromDevice(int fileNum, int offset) async {
-    sdCardFileNum = fileNum;
-    int command = 0;
-    _writeToStorage(_recordingDevice!.id, sdCardFileNum, command, offset);
-  }
-
-  Future _clearFileFromDevice(int fileNum) async {
-    sdCardFileNum = fileNum;
-    int command = 1;
-    _writeToStorage(_recordingDevice!.id, sdCardFileNum, command, 0);
-  }
-
-  Future _pauseFileFromDevice(int fileNum) async {
-    sdCardFileNum = fileNum;
-    int command = 3;
-    _writeToStorage(_recordingDevice!.id, sdCardFileNum, command, 0);
-  }
-
-  void _notifySdCardComplete() {
-    NotificationService.instance.clearNotification(8);
-    NotificationService.instance.createNotification(
-      notificationId: 8,
-      title: 'Sd Card Processing Complete',
-      body: 'Your Sd Card data is now processed! Enter the app to see.',
-    );
-  }
-
-  Future<bool> _writeToStorage(String deviceId, int numFile, int command, int offset) async {
-    var connection = await ServiceManager.instance().device.ensureConnection(deviceId);
-    if (connection == null) {
-      return Future.value(false);
-    }
-    return connection.writeToStorage(numFile, command, offset);
-  }
-
-  Future<List<int>> _getStorageList(String deviceId) async {
-    var connection = await ServiceManager.instance().device.ensureConnection(deviceId);
-    if (connection == null) {
-      return [];
-    }
-    return connection.getStorageList();
-  }
-
   void _processSystemAudioByteReceived(Uint8List bytes) {
     _systemAudioBuffer.addAll(bytes);
     if (!_systemAudioCaching) {
       _flushSystemAudioBuffer();
     }
+  }
+
+  void _broadcastRecordingState() {
+    if (!PlatformService.isDesktop) return;
+
+    final stateData = {
+      'isRecording':
+          recordingState == RecordingState.systemAudioRecord || recordingState == RecordingState.deviceRecord,
+      'isPaused': _isPaused,
+      'duration': _getRecordingDuration(),
+      'isInitialising': recordingState == RecordingState.initialising,
+    };
+
+    _controlBarChannel.invokeMethod('updateRecordingState', stateData);
+  }
+
+  void _startRecordingTimer() {
+    _recordingDuration = 0;
+    _recordingTimer?.cancel();
+    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (recordingState == RecordingState.systemAudioRecord || recordingState == RecordingState.deviceRecord) {
+        _recordingDuration++;
+        _broadcastRecordingState();
+      }
+    });
+  }
+
+  void _stopRecordingTimer() {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    _recordingDuration = 0;
   }
 
   Future<void> pauseDeviceRecording() async {

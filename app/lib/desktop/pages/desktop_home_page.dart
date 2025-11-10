@@ -3,14 +3,15 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:omi/backend/auth.dart';
 import 'package:omi/backend/preferences.dart';
 import 'package:omi/backend/schema/app.dart';
 import 'package:omi/desktop/pages/onboarding/desktop_onboarding_wrapper.dart';
-import 'package:omi/pages/settings/about.dart';
-import 'package:omi/pages/settings/developer.dart';
+import 'package:omi/desktop/pages/settings/desktop_about_page.dart';
+import 'package:omi/desktop/pages/settings/desktop_developer_page.dart';
 import 'package:omi/pages/settings/device_settings.dart';
 import 'package:omi/desktop/pages/settings/desktop_profile_page.dart';
+import 'package:omi/services/auth_service.dart';
+import 'package:omi/providers/sync_provider.dart';
 import 'apps/desktop_apps_page.dart';
 import 'apps/desktop_add_app_page.dart';
 import 'conversations/desktop_conversations_page.dart';
@@ -37,7 +38,6 @@ import 'package:upgrader/upgrader.dart';
 import 'package:omi/utils/platform/platform_manager.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:intercom_flutter/intercom_flutter.dart';
-import 'package:flutter/services.dart';
 import '../../pages/conversations/sync_page.dart';
 import 'home/widgets/battery_info_widget.dart';
 
@@ -139,9 +139,6 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
 
   bool _isRecordingMinimized = false;
 
-  // Native overlay platform channel
-  static const _overlayChannel = MethodChannel('overlayPlatform');
-
   void _initiateApps() {
     context.read<AppProvider>().getApps();
     context.read<AppProvider>().getPopularApps();
@@ -169,7 +166,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
       return;
     }
     debugPrint(event);
-    PlatformManager.instance.instabug.logInfo(event);
+    PlatformManager.instance.crashReporter.logInfo(event);
   }
 
   bool? previousConnection;
@@ -270,9 +267,6 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
     });
 
     _listenToMessagesFromNotification();
-
-    // Setup overlay channel method handler for callbacks from native side
-    _overlayChannel.setMethodCallHandler(_handleOverlayMethod);
 
     super.initState();
   }
@@ -540,8 +534,9 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
                           _buildProfileCard(),
 
                           // Sync notification when available
-                          Consumer<ConversationProvider>(builder: (context, convoProvider, child) {
-                            if (homeProvider.selectedIndex == 0 && convoProvider.missingWalsInSeconds >= 120) {
+                          Consumer2<ConversationProvider, SyncProvider>(
+                              builder: (context, convoProvider, syncProvider, child) {
+                            if (homeProvider.selectedIndex == 0 && syncProvider.missingWalsInSeconds >= 120) {
                               return Container(
                                 margin: const EdgeInsets.fromLTRB(0, 8, 0, 16),
                                 child: Material(
@@ -706,121 +701,6 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
     );
   }
 
-  // Global floating recording widget methods
-  void minimizeRecording() {
-    setState(() {
-      _isRecordingMinimized = true;
-    });
-    _showNativeOverlay(); // Show native overlay when minimizing
-
-    // Update overlay with current state
-    final captureProvider = Provider.of<CaptureProvider>(context, listen: false);
-    final recordingState = captureProvider.recordingState;
-    final isRecording = recordingState == RecordingState.systemAudioRecord;
-    final isPaused = captureProvider.isPaused;
-
-    _updateOverlayState(isRecording: isRecording, isPaused: isPaused);
-
-    // Update with latest transcript if available
-    if (captureProvider.segments.isNotEmpty) {
-      final latestSegment = captureProvider.segments.last;
-      _updateOverlayTranscript(
-        transcript: latestSegment.text.trim(),
-        segmentCount: captureProvider.segments.length,
-      );
-    } else {
-      _updateOverlayStatus(_getStatusText(recordingState, isPaused));
-    }
-  }
-
-  void expandRecording() {
-    setState(() {
-      _isRecordingMinimized = false;
-    });
-    _hideNativeOverlay();
-  }
-
-  Future<void> toggleRecordingFromFloat(CaptureProvider provider) async {
-    var recordingState = provider.recordingState;
-
-    if (recordingState == RecordingState.systemAudioRecord) {
-      await provider.pauseSystemAudioRecording();
-    } else {
-      await provider.resumeSystemAudioRecording();
-    }
-
-    // Update overlay state
-    final isRecording = provider.recordingState == RecordingState.systemAudioRecord;
-    final isPaused = provider.isPaused;
-    await _updateOverlayState(isRecording: isRecording, isPaused: isPaused);
-  }
-
-  Future<void> stopRecordingFromFloat(CaptureProvider provider) async {
-    await provider.stopSystemAudioRecording();
-    await provider.forceProcessingCurrentConversation();
-    _hideNativeOverlay(); // Hide overlay when stopping
-    setState(() {
-      _isRecordingMinimized = false;
-    });
-  }
-
-  String _getStatusText(RecordingState state, bool isPaused) {
-    if (isPaused) return 'Recording paused';
-    switch (state) {
-      case RecordingState.initialising:
-        return 'Initializing recording...';
-      case RecordingState.systemAudioRecord:
-        return 'Listening for audio...';
-      default:
-        return 'Ready to record';
-    }
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Reset minimized state when recording stops completely
-    final captureProvider = Provider.of<CaptureProvider>(context);
-    if (captureProvider.recordingState == RecordingState.stop && _isRecordingMinimized) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _isRecordingMinimized = false;
-          });
-        }
-      });
-    }
-
-    // Update native overlay with real-time transcript and state changes
-    if (_isRecordingMinimized) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _updateNativeOverlayFromProvider(captureProvider);
-      });
-    }
-  }
-
-  void _updateNativeOverlayFromProvider(CaptureProvider captureProvider) {
-    final recordingState = captureProvider.recordingState;
-    final isRecording = recordingState == RecordingState.systemAudioRecord;
-    final isPaused = captureProvider.isPaused;
-
-    // Update overlay state
-    _updateOverlayState(isRecording: isRecording, isPaused: isPaused);
-
-    // Update transcript or status
-    if (captureProvider.segments.isNotEmpty) {
-      final latestSegment = captureProvider.segments.last;
-      _updateOverlayTranscript(
-        transcript: latestSegment.text.trim(),
-        segmentCount: captureProvider.segments.length,
-      );
-    } else {
-      _updateOverlayStatus(_getStatusText(recordingState, isPaused));
-    }
-  }
-
-  // Legacy Flutter floating widget removed - now using native macOS overlay
-
   Widget _buildWindowControls() {
     return Container(
       height: 52,
@@ -841,35 +721,6 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
             type: MacWindowButtonType.minimize,
             onTap: () async {
               await windowManager.minimize();
-
-              // Show overlay if recording is active
-              final captureProvider = Provider.of<CaptureProvider>(context, listen: false);
-              final recordingState = captureProvider.recordingState;
-              final isRecording = recordingState == RecordingState.systemAudioRecord;
-              final isInitializing = recordingState == RecordingState.initialising;
-              final isPaused = captureProvider.isPaused;
-              final isRecordingOrInitializing = isRecording || isInitializing || isPaused;
-
-              if (isRecordingOrInitializing) {
-                setState(() {
-                  _isRecordingMinimized = true;
-                });
-                _showNativeOverlay();
-
-                // Update overlay with current state
-                _updateOverlayState(isRecording: isRecording, isPaused: isPaused);
-
-                // Update with latest transcript if available
-                if (captureProvider.segments.isNotEmpty) {
-                  final latestSegment = captureProvider.segments.last;
-                  _updateOverlayTranscript(
-                    transcript: latestSegment.text.trim(),
-                    segmentCount: captureProvider.segments.length,
-                  );
-                } else {
-                  _updateOverlayStatus(_getStatusText(recordingState, isPaused));
-                }
-              }
             },
           ),
           const SizedBox(width: 8),
@@ -1191,7 +1042,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
         );
         break;
       case 'developer':
-        routeToPage(context, const DeveloperSettingsPage());
+        routeToPage(context, const DesktopDeveloperSettingsPage());
         break;
       case 'help':
         if (PlatformService.isIntercomSupported) {
@@ -1199,7 +1050,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
         }
         break;
       case 'about':
-        routeToPage(context, const AboutOmiPage());
+        routeToPage(context, const DesktopAboutOmiPage());
         break;
       case 'signout':
         _showSignOutDialog();
@@ -1242,9 +1093,9 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
           ),
           TextButton(
             onPressed: () async {
-              await SharedPreferencesUtil().clearUserPreferences();
+              await SharedPreferencesUtil().clear();
               Navigator.of(context).pop();
-              await signOut();
+              await AuthService.instance.signOut();
               if (mounted) {
                 routeToPage(context, const DesktopOnboardingWrapper(), replace: true);
               }
@@ -1270,79 +1121,6 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
       _controller!.dispose();
       _controller = null;
     }
-    _hideNativeOverlay(); // Clean up overlay when page is disposed
     super.dispose();
-  }
-
-  // Handle method calls from native overlay
-  Future<void> _handleOverlayMethod(MethodCall call) async {
-    final captureProvider = Provider.of<CaptureProvider>(context, listen: false);
-
-    switch (call.method) {
-      case 'onPlayPause':
-        await toggleRecordingFromFloat(captureProvider);
-        break;
-      case 'onStop':
-        await stopRecordingFromFloat(captureProvider);
-        break;
-      case 'onExpand':
-        expandRecording();
-        break;
-    }
-  }
-
-  // Native overlay methods
-  Future<void> _showNativeOverlay() async {
-    try {
-      await _overlayChannel.invokeMethod('showOverlay');
-    } catch (e) {
-      print('Error showing native overlay: $e');
-    }
-  }
-
-  Future<void> _hideNativeOverlay() async {
-    try {
-      await _overlayChannel.invokeMethod('hideOverlay');
-    } catch (e) {
-      print('Error hiding native overlay: $e');
-    }
-  }
-
-  Future<void> _updateOverlayState({
-    required bool isRecording,
-    required bool isPaused,
-  }) async {
-    try {
-      await _overlayChannel.invokeMethod('updateOverlayState', {
-        'isRecording': isRecording,
-        'isPaused': isPaused,
-      });
-    } catch (e) {
-      print('Error updating overlay state: $e');
-    }
-  }
-
-  Future<void> _updateOverlayTranscript({
-    required String transcript,
-    required int segmentCount,
-  }) async {
-    try {
-      await _overlayChannel.invokeMethod('updateOverlayTranscript', {
-        'transcript': transcript,
-        'segmentCount': segmentCount,
-      });
-    } catch (e) {
-      print('Error updating overlay transcript: $e');
-    }
-  }
-
-  Future<void> _updateOverlayStatus(String status) async {
-    try {
-      await _overlayChannel.invokeMethod('updateOverlayStatus', {
-        'status': status,
-      });
-    } catch (e) {
-      print('Error updating overlay status: $e');
-    }
   }
 }

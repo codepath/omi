@@ -7,6 +7,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:omi/backend/schema/bt_device/bt_device.dart';
 import 'package:omi/services/devices.dart';
 import 'package:omi/services/devices/frame_connection.dart';
+import 'package:omi/services/devices/models.dart';
 import 'package:omi/services/devices/omi_connection.dart';
 import 'package:omi/services/notifications.dart';
 import 'package:omi/utils/bluetooth/bluetooth_adapter.dart';
@@ -41,6 +42,7 @@ abstract class DeviceConnection {
   BtDevice device;
   BluetoothDevice bleDevice;
   DateTime? _pongAt;
+  int? _features;
 
   DeviceConnectionState _connectionState = DeviceConnectionState.disconnected;
 
@@ -92,6 +94,9 @@ abstract class DeviceConnection {
 
     // Discover services
     _services = await bleDevice.discoverServices();
+
+    // Update device info
+    device = await device.getDeviceInfo(this);
   }
 
   void _onBleConnectionStateChanged(BluetoothConnectionState state) async {
@@ -122,7 +127,7 @@ abstract class DeviceConnection {
 
   Future<bool> ping() async {
     try {
-      int rssi = await bleDevice.readRssi();
+      int rssi = await bleDevice.readRssi(timeout: 10);
       device.rssi = rssi;
       _pongAt = DateTime.now();
       return true;
@@ -291,7 +296,7 @@ abstract class DeviceConnection {
   Future<bool> performHasPhotoStreamingCharacteristic();
 
   Future<StreamSubscription?> getImageListener({
-    required void Function(Uint8List base64JpgData) onImageReceived,
+    required void Function(OrientedImage orientedImage) onImageReceived,
   }) async {
     if (await isConnected()) {
       return await performGetImageListener(onImageReceived: onImageReceived);
@@ -301,7 +306,7 @@ abstract class DeviceConnection {
   }
 
   Future<StreamSubscription?> performGetImageListener({
-    required void Function(Uint8List base64JpgData) onImageReceived,
+    required void Function(OrientedImage orientedImage) onImageReceived,
   });
 
   Future<StreamSubscription<List<int>>?> getAccelListener({
@@ -317,6 +322,37 @@ abstract class DeviceConnection {
   Future<StreamSubscription<List<int>>?> performGetAccelListener({
     void Function(int)? onAccelChange,
   });
+
+  Future<int> getFeatures() async {
+    if (_features != null) return _features!;
+    if (await isConnected()) {
+      _features = await performGetFeatures();
+      return _features!;
+    }
+    _showDeviceDisconnectedNotification();
+    return 0;
+  }
+
+  Future<int> performGetFeatures();
+
+  Future<void> setLedDimRatio(int ratio) async {
+    if (await isConnected()) {
+      return await performSetLedDimRatio(ratio);
+    }
+    _showDeviceDisconnectedNotification();
+  }
+
+  Future<void> performSetLedDimRatio(int ratio);
+
+  Future<int?> getLedDimRatio() async {
+    if (await isConnected()) {
+      return await performGetLedDimRatio();
+    }
+    _showDeviceDisconnectedNotification();
+    return null;
+  }
+
+  Future<int?> performGetLedDimRatio();
 
   void _showDeviceDisconnectedNotification() {
     NotificationService.instance.createNotification(

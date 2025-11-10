@@ -1,16 +1,26 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:omi/backend/schema/schema.dart';
 import 'package:omi/gen/assets.gen.dart';
+import 'package:omi/pages/settings/usage_page.dart';
 import 'package:omi/services/apple_reminders_service.dart';
+import 'package:omi/utils/analytics/mixpanel.dart';
+import 'package:omi/utils/other/temp.dart';
 import 'package:omi/utils/platform/platform_service.dart';
+
 import 'action_item_form_sheet.dart';
 
-class ActionItemTileWidget extends StatelessWidget {
+class ActionItemTileWidget extends StatefulWidget {
   final ActionItemWithMetadata actionItem;
   final Function(bool) onToggle;
   final Set<String>? exportedToAppleReminders;
   final VoidCallback? onExportedToAppleReminders;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onSelectionToggle;
 
   const ActionItemTileWidget({
     super.key,
@@ -18,7 +28,47 @@ class ActionItemTileWidget extends StatelessWidget {
     required this.onToggle,
     this.exportedToAppleReminders,
     this.onExportedToAppleReminders,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+    this.onLongPress,
+    this.onSelectionToggle,
   });
+
+  @override
+  State<ActionItemTileWidget> createState() => _ActionItemTileWidgetState();
+}
+
+class _ActionItemTileWidgetState extends State<ActionItemTileWidget> {
+  bool _isAnimating = false;
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  void _handleToggle() async {
+    if (_isAnimating) return;
+
+    HapticFeedback.mediumImpact();
+
+    final newState = !widget.actionItem.completed;
+
+    if (newState) {
+      setState(() {
+        _isAnimating = true;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      widget.onToggle(newState);
+
+      setState(() {
+        _isAnimating = false;
+      });
+    } else {
+      widget.onToggle(newState);
+    }
+  }
 
   void _showEditSheet(BuildContext context) {
     HapticFeedback.mediumImpact();
@@ -27,19 +77,19 @@ class ActionItemTileWidget extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => ActionItemFormSheet(
-        actionItem: actionItem,
-        exportedToAppleReminders: exportedToAppleReminders,
-        onExportedToAppleReminders: onExportedToAppleReminders,
+        actionItem: widget.actionItem,
+        exportedToAppleReminders: widget.exportedToAppleReminders,
+        onExportedToAppleReminders: widget.onExportedToAppleReminders,
       ),
     );
   }
 
   Widget _buildDueDateChip() {
-    if (actionItem.dueAt == null) return const SizedBox.shrink();
+    if (widget.actionItem.dueAt == null) return const SizedBox.shrink();
 
     final now = DateTime.now();
-    final dueDate = actionItem.dueAt!;
-    final isOverdue = dueDate.isBefore(now) && !actionItem.completed;
+    final dueDate = widget.actionItem.dueAt!;
+    final isOverdue = dueDate.isBefore(now) && !widget.actionItem.completed;
     final isToday = _isSameDay(dueDate, now);
     final isTomorrow = _isSameDay(dueDate, now.add(const Duration(days: 1)));
     final isThisWeek = dueDate.isAfter(now) && dueDate.isBefore(now.add(const Duration(days: 7)));
@@ -49,7 +99,7 @@ class ActionItemTileWidget extends StatelessWidget {
     IconData icon;
     String dueDateText;
 
-    if (actionItem.completed) {
+    if (widget.actionItem.completed) {
       chipColor = Colors.grey.withOpacity(0.2);
       textColor = Colors.grey.shade500;
       icon = Icons.check_circle_outline;
@@ -110,15 +160,14 @@ class ActionItemTileWidget extends StatelessWidget {
   }
 
   bool _isSameDay(DateTime date1, DateTime date2) {
-    return date1.year == date2.year &&
-        date1.month == date2.month &&
-        date1.day == date2.day;
+    return date1.year == date2.year && date1.month == date2.month && date1.day == date2.day;
   }
 
   String _formatDueDate(DateTime date) {
     final now = DateTime.now();
-    final difference = date.difference(now).inDays;
-    
+    final today = DateTime(now.year, now.month, now.day);
+    final targetDate = DateTime(date.year, date.month, date.day);
+    final difference = targetDate.difference(today).inDays;
     if (difference == 0) {
       return 'Today';
     } else if (difference == 1) {
@@ -129,15 +178,14 @@ class ActionItemTileWidget extends StatelessWidget {
       final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       return weekdays[date.weekday - 1];
     } else {
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       return '${months[date.month - 1]} ${date.day}';
     }
   }
 
   Widget _buildAppleRemindersIcon(BuildContext context) {
-    final isExported = exportedToAppleReminders?.contains(actionItem.description) ?? false;
-    
+    final isExported = widget.exportedToAppleReminders?.contains(widget.actionItem.description) ?? false;
+
     return GestureDetector(
       onTap: () => _handleAppleRemindersExport(context),
       child: Container(
@@ -200,8 +248,8 @@ class ActionItemTileWidget extends StatelessWidget {
     HapticFeedback.mediumImpact();
 
     final service = AppleRemindersService();
-    final isAlreadyExported = exportedToAppleReminders?.contains(actionItem.description) ?? false;
-    
+    final isAlreadyExported = widget.exportedToAppleReminders?.contains(widget.actionItem.description) ?? false;
+
     if (isAlreadyExported) {
       // Show message that it's already exported
       if (context.mounted) {
@@ -224,11 +272,11 @@ class ActionItemTileWidget extends StatelessWidget {
 
     // Check permissions and request if needed
     bool hasPermission = await service.hasPermission();
-    
+
     if (!hasPermission) {
       // Request permission directly
       hasPermission = await service.requestPermission();
-      
+
       if (!hasPermission) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -275,25 +323,22 @@ class ActionItemTileWidget extends StatelessWidget {
 
     // Add to Apple Reminders
     final success = await service.addReminder(
-      title: actionItem.description,
+      title: widget.actionItem.description,
       notes: 'From Omi',
+      dueDate: widget.actionItem.dueAt,
       listName: 'Reminders',
     );
-    
+
     if (context.mounted) {
       // Clear the loading snackbar
       ScaffoldMessenger.of(context).clearSnackBars();
-      
+
       // Show result
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              Icon(
-                success ? Icons.check_circle : Icons.error, 
-                color: Colors.white, 
-                size: 20
-              ),
+              Icon(success ? Icons.check_circle : Icons.error, color: Colors.white, size: 20),
               const SizedBox(width: 8),
               Text(success ? 'Added to Apple Reminders' : 'Failed to add to Reminders'),
             ],
@@ -305,7 +350,7 @@ class ActionItemTileWidget extends StatelessWidget {
 
       // If successful, update the exported list
       if (success) {
-        onExportedToAppleReminders?.call();
+        widget.onExportedToAppleReminders?.call();
       }
     }
   }
@@ -315,83 +360,155 @@ class ActionItemTileWidget extends StatelessWidget {
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
-      color: const Color(0xFF1F1F25),
+      color: widget.isSelected ? Colors.deepPurpleAccent.withOpacity(0.1) : const Color(0xFF1F1F25),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: actionItem.completed 
-            ? Colors.grey.withOpacity(0.2)
-            : Colors.transparent,
-          width: 1,
+          color: widget.isSelected
+              ? Colors.deepPurpleAccent.withOpacity(0.5)
+              : (widget.actionItem.completed ? Colors.grey.withOpacity(0.2) : Colors.transparent),
+          width: widget.isSelected ? 2 : 1,
         ),
       ),
       clipBehavior: Clip.hardEdge,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _showEditSheet(context),
+        onTap: widget.isSelectionMode ? widget.onSelectionToggle : () => _showEditSheet(context),
+        onLongPress: widget.onLongPress,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
+          child: Stack(
             children: [
-              // Custom checkbox with better styling
-              GestureDetector(
-                onTap: () => onToggle(!actionItem.completed),
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: actionItem.completed 
-                        ? Colors.deepPurpleAccent 
-                        : Colors.grey.shade600,
-                      width: 2,
-                    ),
-                    color: actionItem.completed 
-                      ? Colors.deepPurpleAccent 
-                      : Colors.transparent,
-                  ),
-                  child: actionItem.completed
-                    ? const Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 16,
-                      )
-                    : null,
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Action item text and due date
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      actionItem.description,
-                      style: TextStyle(
-                        color: actionItem.completed ? Colors.grey.shade400 : Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w400,
-                        decoration: actionItem.completed ? TextDecoration.lineThrough : null,
-                        decorationColor: Colors.grey.shade400,
+              Row(
+                children: [
+                  // Selection checkbox when in selection mode
+                  if (widget.isSelectionMode)
+                    GestureDetector(
+                      onTap: widget.onSelectionToggle,
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: widget.isSelected ? Colors.deepPurpleAccent : Colors.grey.shade600,
+                            width: 2,
+                          ),
+                          color: widget.isSelected ? Colors.deepPurpleAccent : Colors.transparent,
+                        ),
+                        child: widget.isSelected
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 16,
+                              )
+                            : null,
+                      ),
+                    )
+                  // Completion checkbox when not in selection mode
+                  else
+                    GestureDetector(
+                      onTap: _handleToggle,
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: (widget.actionItem.completed || _isAnimating)
+                                ? Colors.deepPurpleAccent
+                                : Colors.grey.shade600,
+                            width: 2,
+                          ),
+                          color: (widget.actionItem.completed || _isAnimating)
+                              ? Colors.deepPurpleAccent
+                              : Colors.transparent,
+                        ),
+                        child: (widget.actionItem.completed || _isAnimating)
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 16,
+                              )
+                            : null,
                       ),
                     ),
-                    if (actionItem.dueAt != null) ...[
-                      const SizedBox(height: 6),
-                      _buildDueDateChip(),
-                    ],
+                  const SizedBox(width: 16),
+                  // Action item text and due date
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Stack(
+                                children: [
+                                  Text(
+                                    widget.actionItem.description,
+                                    style: TextStyle(
+                                      color: (widget.actionItem.completed || _isAnimating)
+                                          ? Colors.grey.shade400
+                                          : Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w400,
+                                      decoration: (widget.actionItem.completed || _isAnimating)
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                      decorationColor: Colors.grey.shade400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (widget.actionItem.dueAt != null) ...[
+                          const SizedBox(height: 6),
+                          _buildDueDateChip(),
+                        ],
+                      ],
+                    ),
+                  ),
+                  // Apple Reminders icon (only show on Apple platforms)
+                  if (PlatformService.isApple) ...[
+                    const SizedBox(width: 12),
+                    _buildAppleRemindersIcon(context),
                   ],
-                ),
+                ],
               ),
-              // Apple Reminders icon (only show on Apple platforms)
-              if (PlatformService.isApple) ...[
-                const SizedBox(width: 12),
-                _buildAppleRemindersIcon(context),
-              ],
+              if (widget.actionItem.isLocked)
+                Positioned.fill(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
+                    child: GestureDetector(
+                      onTap: () {
+                        MixpanelManager().paywallOpened('Action Item');
+                        routeToPage(context, const UsagePage(showUpgradeDialog: true));
+                        return;
+                      },
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.01),
+                          borderRadius: const BorderRadius.all(Radius.circular(8)),
+                        ),
+                        child: const Text(
+                          'Upgrade to unlimited',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
       ),
     );
   }
-} 
+}

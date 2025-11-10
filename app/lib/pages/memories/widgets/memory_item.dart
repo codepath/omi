@@ -1,11 +1,17 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:omi/backend/schema/memory.dart';
+import 'package:omi/pages/memories/page.dart';
+import 'package:omi/pages/settings/usage_page.dart';
 import 'package:omi/providers/memories_provider.dart';
 import 'package:omi/utils/analytics/mixpanel.dart';
+import 'package:omi/utils/other/temp.dart';
 import 'package:omi/utils/ui_guidelines.dart';
 import 'package:omi/widgets/extensions/string.dart';
-import 'package:omi/pages/memories/page.dart';
+import 'package:omi/backend/http/api/conversations.dart';  
+import 'package:omi/pages/conversation_detail/page.dart'; 
 
 import 'delete_confirmation.dart';
 
@@ -26,24 +32,79 @@ class MemoryItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Widget memoryWidget = GestureDetector(
-      onTap: () => onTap(context, memory, provider),
+      onTap: () {
+        onTap(context, memory, provider);
+      },
       child: Container(
-        margin: const EdgeInsets.only(bottom: AppStyles.spacingM),
+        margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingL, vertical: AppStyles.spacingL),
-        decoration: AppStyles.cardDecoration,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Text(
-                memory.content.decodeString,
-                style: AppStyles.body,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
+        decoration: BoxDecoration(
+          color: AppStyles.backgroundSecondary,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
             ),
-            const SizedBox(width: AppStyles.spacingM),
-            _buildVisibilityButton(context),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Text(
+                        memory.content.decodeString,
+                        style: AppStyles.body,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppStyles.spacingM),
+                if(memory.conversationId != null)
+                  IconButton(
+                    icon: Icon(Icons.chat_bubble_outline,size:20,color: Colors.white),
+                    onPressed: () => _navigateConversation(context)
+                    ),
+                _buildVisibilityButton(context),
+              ],
+            ),
+            if (memory.isLocked)
+              Positioned.fill(
+                child: ClipRRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
+                    child: GestureDetector(
+                      onTap: () {
+                        MixpanelManager().paywallOpened('Action Item');
+                        routeToPage(context, const UsagePage(showUpgradeDialog: true));
+                        return;
+                      },
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.01),
+                          borderRadius: const BorderRadius.all(Radius.circular(8)),
+                        ),
+                        child: const Text(
+                          'Upgrade to unlimited',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -72,10 +133,10 @@ class MemoryItem extends StatelessWidget {
         }
       },
       background: Container(
-        margin: const EdgeInsets.only(bottom: AppStyles.spacingM),
+        margin: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
           color: AppStyles.error,
-          borderRadius: BorderRadius.circular(AppStyles.radiusLarge),
+          borderRadius: BorderRadius.circular(16),
         ),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
@@ -83,6 +144,22 @@ class MemoryItem extends StatelessWidget {
       ),
       child: memoryWidget,
     );
+  }
+
+  void _navigateConversation(BuildContext context) async
+  {
+    showDialog(context:context, builder: (_) => const Center(child: CircularProgressIndicator(color:Colors.blue)));
+    await Future.delayed(const Duration(seconds:2));
+    final conversation = await getConversationById(memory.conversationId!);
+    Navigator.pop(context);
+
+    if(conversation == null)
+    {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conversation not found')),);
+      return;
+    }
+
+    Navigator.push(context,MaterialPageRoute(builder: (_) => ConversationDetailPage(conversation:conversation)));
   }
 
   Widget _buildVisibilityButton(BuildContext context) {
@@ -99,7 +176,7 @@ class MemoryItem extends StatelessWidget {
         height: 36,
         width: 56,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(AppStyles.radiusMedium),
         ),
         child: Row(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:collection/collection.dart';
@@ -20,6 +21,15 @@ import 'package:omi/utils/platform/platform_service.dart';
 import 'package:uuid/uuid.dart';
 
 class MessageProvider extends ChangeNotifier {
+  static late MethodChannel _askAIChannel;
+
+  MessageProvider() {
+    if (PlatformService.isDesktop) {
+      _askAIChannel = const MethodChannel('com.omi/ask_ai');
+      _askAIChannel.setMethodCallHandler(_handleAskAIMethodCall);
+    }
+  }
+
   AppProvider? appProvider;
   List<ServerMessage> messages = [];
   bool _isNextMessageFromVoice = false;
@@ -246,19 +256,23 @@ class MessageProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> uploadFiles(List<File> files, String? appId) async {
+  Future<List<MessageFile>?> uploadFiles(List<File> files, String? appId) async {
     if (files.isNotEmpty) {
       setMultiUploadingFileStatus(files.map((e) => e.path).toList(), true);
       var res = await uploadFilesServer(files, appId: appId);
       if (res != null) {
         uploadedFiles.addAll(res);
+        return res;
       } else {
         clearSelectedFiles();
         AppSnackbar.showSnackbarError('Failed to upload file, please try again later');
       }
       setMultiUploadingFileStatus(files.map((e) => e.path).toList(), false);
       notifyListeners();
+      return res;
     }
+
+    return null;
   }
 
   void removeLocalMessage(String id) {
@@ -297,7 +311,7 @@ class MessageProvider extends ChangeNotifier {
     }
     setLoadingMessages(true);
     var mes = await getMessagesServer(
-      pluginId: appProvider?.selectedChatAppId,
+      appId: appProvider?.selectedChatAppId,
       dropdownSelected: dropdownSelected,
     );
     if (!hasCachedMessages) {
@@ -318,7 +332,7 @@ class MessageProvider extends ChangeNotifier {
 
   Future clearChat() async {
     setClearingChat(true);
-    var mes = await clearChatServer(pluginId: appProvider?.selectedChatAppId);
+    var mes = await clearChatServer(appId: appProvider?.selectedChatAppId);
     messages = mes;
     setClearingChat(false);
     notifyListeners();
@@ -357,7 +371,8 @@ class MessageProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future sendVoiceMessageStreamToServer(List<List<int>> audioBytes, {Function? onFirstChunkRecived, BleAudioCodec? codec}) async {
+  Future sendVoiceMessageStreamToServer(List<List<int>> audioBytes,
+      {Function? onFirstChunkRecived, BleAudioCodec? codec}) async {
     var file = await FileUtils.saveAudioBytesToTempFile(
       audioBytes,
       DateTime.now().millisecondsSinceEpoch ~/ 1000 - (audioBytes.length / 100).ceil(),
@@ -458,23 +473,38 @@ class MessageProvider extends ChangeNotifier {
     List<String> fileIds = uploadedFiles.map((e) => e.id).toList();
     clearSelectedFiles();
     clearUploadedFiles();
+    String textBuffer = '';
+    Timer? timer;
+
+    void flushBuffer() {
+      if (textBuffer.isNotEmpty) {
+        message.text += textBuffer;
+        textBuffer = '';
+        HapticFeedback.lightImpact();
+        notifyListeners();
+      }
+    }
+
     try {
       await for (var chunk in sendMessageStreamServer(text, appId: currentAppId, filesId: fileIds)) {
         if (chunk.type == MessageChunkType.think) {
+          flushBuffer();
           message.thinkings.add(chunk.text);
           notifyListeners();
           continue;
         }
 
         if (chunk.type == MessageChunkType.data) {
-          message.text += chunk.text;
-          // Add haptic feedback for each character chunk received during streaming
-          if (chunk.text.isNotEmpty) {
-            HapticFeedback.lightImpact();
-          }
-          notifyListeners();
+          textBuffer += chunk.text;
+          timer ??= Timer.periodic(const Duration(milliseconds: 100), (_) {
+            flushBuffer();
+          });
           continue;
         }
+
+        timer?.cancel();
+        timer = null;
+        flushBuffer();
 
         if (chunk.type == MessageChunkType.done) {
           message = chunk.message!;
@@ -492,9 +522,11 @@ class MessageProvider extends ChangeNotifier {
     } catch (e) {
       message.text = ServerMessageChunk.failedMessage().text;
       notifyListeners();
+    } finally {
+      timer?.cancel();
+      flushBuffer();
+      setShowTypingIndicator(false);
     }
-
-    setShowTypingIndicator(false);
   }
 
   Future sendInitialAppMessage(App? app) async {
@@ -507,5 +539,60 @@ class MessageProvider extends ChangeNotifier {
 
   App? messageSenderApp(String? appId) {
     return appProvider?.apps.firstWhereOrNull((p) => p.id == appId);
+  }
+
+  Future<void> _handleAskAIMethodCall(MethodCall call) async {
+    if (!PlatformService.isDesktop) {
+      return;
+    }
+    switch (call.method) {
+      case 'sendQuery':
+        final args = call.arguments as Map<dynamic, dynamic>;
+        final message = args['message'] as String;
+        final filePath = args['filePath'] as String?;
+
+        List<String>? fileIds;
+        if (filePath != null && filePath.isNotEmpty) {
+          final file = File(filePath);
+          final uploadedFilesResult = await uploadFiles([file], null);
+          if (uploadedFilesResult != null) {
+            fileIds = uploadedFilesResult.map((f) => f.id).toList();
+          } else {
+            _askAIChannel.invokeMethod('aiResponseChunk', {
+              'type': 'error',
+              'text': 'Failed to upload the attached file.',
+            });
+            return;
+          }
+        }
+
+        try {
+          await for (var chunk in sendMessageStreamServer(message, filesId: fileIds)) {
+            final chunkMap = {
+              'type': chunk.type.toString().split('.').last,
+              'text': chunk.text,
+              'messageId': chunk.messageId,
+            };
+            if (chunk.type == MessageChunkType.done && chunk.message != null) {
+              chunkMap['text'] = chunk.message!.text;
+            }
+            _askAIChannel.invokeMethod('aiResponseChunk', chunkMap);
+          }
+        } catch (e) {
+          final failedChunk = ServerMessageChunk.failedMessage();
+          final chunkMap = {
+            'type': failedChunk.type.toString().split('.').last,
+            'text': failedChunk.text,
+            'messageId': failedChunk.messageId,
+          };
+          _askAIChannel.invokeMethod('aiResponseChunk', chunkMap);
+        }
+        break;
+      default:
+        throw PlatformException(
+          code: 'Unimplemented',
+          details: 'Method ${call.method} not implemented.',
+        );
+    }
   }
 }

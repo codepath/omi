@@ -11,16 +11,29 @@ class AppsPage extends StatefulWidget {
   const AppsPage({super.key, this.showAppBar = false});
 
   @override
-  State<AppsPage> createState() => _AppsPageState();
+  State<AppsPage> createState() => AppsPageState();
 }
 
-class _AppsPageState extends State<AppsPage> with AutomaticKeepAliveClientMixin {
+class AppsPageState extends State<AppsPage> with AutomaticKeepAliveClientMixin {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey<ExploreInstallPageState> _exploreInstallPageKey = GlobalKey<ExploreInstallPageState>();
+
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AddAppProvider>().getCategories();
     });
     super.initState();
+  }
+
+  void scrollToTop() {
+    _exploreInstallPageKey.currentState?.scrollToTop();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -37,7 +50,7 @@ class _AppsPageState extends State<AppsPage> with AutomaticKeepAliveClientMixin 
               elevation: 0,
             )
           : null,
-      body: const DefaultTabController(
+      body: DefaultTabController(
         length: 1,
         initialIndex: 0,
         child: Column(
@@ -57,7 +70,10 @@ class _AppsPageState extends State<AppsPage> with AutomaticKeepAliveClientMixin 
             //   ],
             // ),
             Expanded(
-              child: ExploreInstallPage(),
+              child: ExploreInstallPage(
+                key: _exploreInstallPageKey,
+                scrollController: _scrollController,
+              ),
             ),
             // const Expanded(
             //     child: TabBarView(
@@ -94,7 +110,9 @@ class EmptyAppsWidget extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 64, left: 14, right: 14),
                   child: Center(
                     child: Text(
-                      state.isConnected ? 'No apps found' : 'Unable to fetch apps :(\n\nPlease check your internet connection and try again.',
+                      state.isConnected
+                          ? 'No apps found'
+                          : 'Unable to fetch apps :(\n\nPlease check your internet connection and try again.',
                       style: const TextStyle(color: Colors.white, fontSize: 16),
                       textAlign: TextAlign.center,
                     ),

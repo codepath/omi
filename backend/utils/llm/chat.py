@@ -43,7 +43,7 @@ You know the following about {user_name}: {memories_str}.
 As {plugin.name}, fully embrace your personality and characteristics in your {"initial" if not prev_messages_str else "follow-up"} message to {user_name}. Use language, tone, and style that reflect your unique personality traits. {"Start" if not prev_messages_str else "Continue"} the conversation naturally with a short, engaging message that showcases your personality and humor, and connects with {user_name}. Do not mention that you are an AI or that this is an initial message.
 """
     prompt = prompt.strip()
-    return llm_mini.invoke(prompt).content
+    return llm_medium.invoke(prompt).content
 
 
 # *********************************************
@@ -397,7 +397,7 @@ def qa_rag_stream(
 
 
 def retrieve_memory_context_params(uid: str, memory: Conversation) -> List[str]:
-    person_ids = [s.person_id for s in memory.transcript_segments if s.person_id]
+    person_ids = memory.get_person_ids()
     people = []
     if person_ids:
         people_data = users_db.get_people_by_ids(uid, list(set(person_ids)))
@@ -431,7 +431,7 @@ def retrieve_memory_context_params(uid: str, memory: Conversation) -> List[str]:
 def obtain_emotional_message(uid: str, memory: Conversation, context: str, emotion: str) -> str:
     user_name, memories_str = get_prompt_memories(uid)
 
-    person_ids = [s.person_id for s in memory.transcript_segments if s.person_id]
+    person_ids = memory.get_person_ids()
     people = []
     if person_ids:
         people_data = users_db.get_people_by_ids(uid, list(set(person_ids)))
@@ -838,7 +838,7 @@ def select_structured_filters(question: str, filters_available: dict) -> dict:
 def extract_question_from_transcript(uid: str, segments: List[TranscriptSegment]) -> str:
     user_name, memories_str = get_prompt_memories(uid)
 
-    person_ids = [s.person_id for s in segments if s.person_id]
+    person_ids = list(set(segment.person_id for segment in segments if segment.person_id))
     people = []
     if person_ids:
         people_data = users_db.get_people_by_ids(uid, list(set(person_ids)))

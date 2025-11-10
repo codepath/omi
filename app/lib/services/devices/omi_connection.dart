@@ -13,7 +13,7 @@ import 'package:omi/services/devices/errors.dart';
 import 'package:omi/services/devices/models.dart';
 import 'package:omi/utils/audio/wav_bytes.dart';
 import 'package:omi/utils/logger.dart';
-import 'package:image/image.dart' as img;
+import 'package:version/version.dart';
 
 class OmiDeviceConnection extends DeviceConnection {
   BluetoothService? _batteryService;
@@ -22,6 +22,13 @@ class OmiDeviceConnection extends DeviceConnection {
   BluetoothService? _accelService;
   BluetoothService? _buttonService;
   BluetoothService? _speakerService;
+  BluetoothService? _settingsService;
+  BluetoothService? _featuresService;
+
+  static const String settingsServiceUuid = '19b10010-e8f2-537e-4f6c-d104768a1214';
+  static const String settingsDimRatioCharacteristicUuid = '19b10011-e8f2-537e-4f6c-d104768a1214';
+  static const String featuresServiceUuid = '19b10020-e8f2-537e-4f6c-d104768a1214';
+  static const String featuresCharacteristicUuid = '19b10021-e8f2-537e-4f6c-d104768a1214';
 
   OmiDeviceConnection(super.device, super.bleDevice);
 
@@ -61,6 +68,17 @@ class OmiDeviceConnection extends DeviceConnection {
     _buttonService = await getService(buttonServiceUuid);
     if (_buttonService == null) {
       logServiceNotFoundError('Button', deviceId);
+    }
+
+    _settingsService = await getService(settingsServiceUuid);
+    if (_settingsService == null) {
+      logServiceNotFoundError('Settings', deviceId);
+    }
+
+    _featuresService = await getService(featuresServiceUuid);
+    if (_featuresService == null) {
+      // This is not a critical service, so we don't throw an exception
+      logServiceNotFoundError('Features', deviceId);
     }
   }
 
@@ -308,7 +326,6 @@ class OmiDeviceConnection extends DeviceConnection {
       debugPrint('storage list called');
       return await performGetStorageList();
     }
-    // _showDeviceDisconnectedNotification();
     debugPrint('storage list error');
     return Future.value(<int>[]);
   }
@@ -317,10 +334,6 @@ class OmiDeviceConnection extends DeviceConnection {
   Future<List<int>> performGetStorageList() async {
     debugPrint(' perform storage list called');
     if (_storageService == null) {
-      if (device.name == 'Omi DevKit 2') {
-        // Should only report incase of DevKit 2 because only DevKit 2 has storage service
-        logServiceNotFoundError('Storage', deviceId);
-      }
       return Future.value(<int>[]);
     }
 
@@ -446,7 +459,6 @@ class OmiDeviceConnection extends DeviceConnection {
         .write([command & 0xFF, numFile & 0xFF, offsetBytes[0], offsetBytes[1], offsetBytes[2], offsetBytes[3]]);
     return true;
   }
-  // Future<List<int>> performGetStorageList();
 
   @override
   Future performCameraStartPhotoController() async {
@@ -553,7 +565,7 @@ class OmiDeviceConnection extends DeviceConnection {
 
   @override
   Future<StreamSubscription?> performGetImageListener({
-    required void Function(Uint8List base64JpgData) onImageReceived,
+    required void Function(OrientedImage orientedImage) onImageReceived,
   }) async {
     if (!await hasPhotoStreamingCharacteristic()) {
       return null;
@@ -563,6 +575,15 @@ class OmiDeviceConnection extends DeviceConnection {
     var buffer = BytesBuilder();
     var nextExpectedFrame = 0;
     var isTransferring = false;
+    ImageOrientation? currentOrientation;
+
+    Version newFirmwareVersion = Version.parse("2.1.1");
+    Version deviceFirmwareVersion;
+    try {
+      deviceFirmwareVersion = Version.parse(device.firmwareRevision);
+    } catch (e) {
+      deviceFirmwareVersion = Version(0, 0, 0);
+    }
 
     var bleBytesStream = await _getBleImageBytesListener(
       onImageBytesReceived: (List<int> value) async {
@@ -578,7 +599,10 @@ class OmiDeviceConnection extends DeviceConnection {
             if (imageBytes.isNotEmpty) {
               debugPrint('Completed image bytes length: ${imageBytes.length}');
               try {
-                onImageReceived(imageBytes);
+                onImageReceived(OrientedImage(
+                  imageBytes: imageBytes,
+                  orientation: currentOrientation ?? ImageOrientation.orientation0,
+                ));
               } catch (e) {
                 debugPrint('Error processing image: $e');
               }
@@ -588,6 +612,7 @@ class OmiDeviceConnection extends DeviceConnection {
           buffer.clear();
           isTransferring = false;
           nextExpectedFrame = 0;
+          currentOrientation = null;
           return;
         }
 
@@ -596,6 +621,7 @@ class OmiDeviceConnection extends DeviceConnection {
           buffer.clear();
           isTransferring = true;
           nextExpectedFrame = 0;
+          currentOrientation = null;
         }
 
         // If we are not in a transfer state, ignore the packet unless it's frame 0.
@@ -606,8 +632,29 @@ class OmiDeviceConnection extends DeviceConnection {
 
         // Check if the frame is the one we expect.
         if (frameIndex == nextExpectedFrame) {
-          if (chunk.length > 2) {
-            buffer.add(chunk.sublist(2));
+          if (frameIndex == 0) {
+            if (deviceFirmwareVersion >= newFirmwareVersion) {
+              // New firmware: parse orientation from packet
+              if (chunk.length > 2) {
+                currentOrientation = ImageOrientation.fromValue(chunk[2]);
+                if (chunk.length > 3) {
+                  buffer.add(chunk.sublist(3));
+                }
+              } else {
+                // Malformed packet, default orientation
+                currentOrientation = ImageOrientation.orientation0;
+              }
+            } else {
+              // Old firmware: default to 180 degrees and treat whole chunk as data
+              currentOrientation = ImageOrientation.orientation180;
+              if (chunk.length > 2) {
+                buffer.add(chunk.sublist(2));
+              }
+            }
+          } else {
+            if (chunk.length > 2) {
+              buffer.add(chunk.sublist(2));
+            }
           }
           nextExpectedFrame++;
         } else {
@@ -617,6 +664,7 @@ class OmiDeviceConnection extends DeviceConnection {
           buffer.clear();
           isTransferring = false;
           nextExpectedFrame = 0;
+          currentOrientation = null;
         }
 
         // Safety break for oversized buffer
@@ -625,6 +673,7 @@ class OmiDeviceConnection extends DeviceConnection {
           buffer.clear();
           isTransferring = false;
           nextExpectedFrame = 0;
+          currentOrientation = null;
         }
       },
     );
@@ -664,8 +713,6 @@ class OmiDeviceConnection extends DeviceConnection {
     }
 
     var listener = accelCharacteristic.lastValueStream.listen((value) {
-      // debugPrint('Battery level listener: $value');
-
       if (value.length > 4) {
         //for some reason, the very first reading is four bytes
 
@@ -721,5 +768,55 @@ class OmiDeviceConnection extends DeviceConnection {
     device.cancelWhenDisconnected(listener);
 
     return listener;
+  }
+
+  @override
+  Future<void> performSetLedDimRatio(int ratio) async {
+    if (_settingsService == null) {
+      logServiceNotFoundError('Settings', deviceId);
+      return;
+    }
+    var dimRatioCharacteristic = getCharacteristic(_settingsService!, settingsDimRatioCharacteristicUuid);
+    if (dimRatioCharacteristic == null) {
+      logCharacteristicNotFoundError('Settings dim ratio', deviceId);
+      return;
+    }
+    await dimRatioCharacteristic.write([ratio.clamp(0, 100)]);
+  }
+
+  @override
+  Future<int?> performGetLedDimRatio() async {
+    if (_settingsService == null) {
+      logServiceNotFoundError('Settings', deviceId);
+      return null;
+    }
+    var dimRatioCharacteristic = getCharacteristic(_settingsService!, settingsDimRatioCharacteristicUuid);
+    if (dimRatioCharacteristic == null) {
+      logCharacteristicNotFoundError('Settings dim ratio', deviceId);
+      return null;
+    }
+    var value = await dimRatioCharacteristic.read();
+    if (value.isNotEmpty) {
+      return value[0];
+    }
+    return null;
+  }
+
+  @override
+  Future<int> performGetFeatures() async {
+    if (_featuresService == null) {
+      logServiceNotFoundError('Features', deviceId);
+      return 0;
+    }
+    var featuresCharacteristic = getCharacteristic(_featuresService!, featuresCharacteristicUuid);
+    if (featuresCharacteristic == null) {
+      logCharacteristicNotFoundError('Features', deviceId);
+      return 0;
+    }
+    var value = await featuresCharacteristic.read();
+    if (value.length >= 4) {
+      return ByteData.view(Uint8List.fromList(value).buffer).getUint32(0, Endian.little);
+    }
+    return 0;
   }
 }

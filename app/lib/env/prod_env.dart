@@ -13,10 +13,6 @@ final class ProdEnv implements EnvFields {
   final String? openAIAPIKey = _ProdEnv.openAIAPIKey;
 
   @override
-  @EnviedField(varName: 'INSTABUG_API_KEY', obfuscate: true)
-  final String? instabugApiKey = _ProdEnv.instabugApiKey;
-
-  @override
   @EnviedField(varName: 'MIXPANEL_PROJECT_TOKEN', obfuscate: true)
   final String? mixpanelProjectToken = _ProdEnv.mixpanelProjectToken;
 
@@ -43,10 +39,6 @@ final class ProdEnv implements EnvFields {
   @override
   @EnviedField(varName: 'INTERCOM_ANDROID_API_KEY', obfuscate: true)
   final String? intercomAndroidApiKey = _ProdEnv.intercomAndroidApiKey;
-
-  @override
-  @EnviedField(varName: 'POSTHOG_API_KEY', obfuscate: true)
-  final String? posthogApiKey = _ProdEnv.posthogApiKey;
 
   @override
   @EnviedField(varName: 'GOOGLE_CLIENT_ID', obfuscate: true)

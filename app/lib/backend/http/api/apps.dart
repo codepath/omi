@@ -7,10 +7,9 @@ import 'package:omi/backend/http/shared.dart';
 import 'package:omi/backend/preferences.dart';
 import 'package:omi/backend/schema/app.dart';
 import 'package:omi/env/env.dart';
-
-import 'package:http/http.dart' as http;
 import 'package:omi/utils/logger.dart';
 import 'package:omi/utils/platform/platform_manager.dart';
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
 
 Future<List<App>> retrieveApps() async {
@@ -29,7 +28,7 @@ Future<List<App>> retrieveApps() async {
       return apps;
     } catch (e, stackTrace) {
       debugPrint(e.toString());
-      PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+      PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
       return SharedPreferencesUtil().appsList;
     }
   }
@@ -52,7 +51,7 @@ Future<List<App>> retrievePopularApps() async {
       return apps;
     } catch (e, stackTrace) {
       debugPrint(e.toString());
-      PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+      PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
       return SharedPreferencesUtil().appsList;
     }
   }
@@ -100,16 +99,12 @@ Future<bool> reviewApp(String appId, AppReview review) async {
 }
 
 Future<Map<String, String>> uploadAppThumbnail(File file) async {
-  var request = http.MultipartRequest(
-    'POST',
-    Uri.parse('${Env.apiBaseUrl}v1/app/thumbnails'),
-  );
-  request.files.add(await http.MultipartFile.fromPath('file', file.path, filename: basename(file.path)));
-  request.headers.addAll({'Authorization': await getAuthHeader()});
-
   try {
-    var streamedResponse = await request.send();
-    var response = await http.Response.fromStream(streamedResponse);
+    var response = await makeMultipartApiCall(
+      url: '${Env.apiBaseUrl}v1/app/thumbnails',
+      files: [file],
+      fileFieldName: 'file',
+    );
 
     if (response.statusCode == 200) {
       var data = jsonDecode(response.body);
@@ -143,13 +138,13 @@ Future<bool> updateAppReview(String appId, AppReview review) async {
   }
 }
 
-Future<bool> replyToAppReview(String appId, String reply) async {
+Future<bool> replyToAppReview(String appId, String reply, String reviewerUid) async {
   try {
     var response = await makeApiCall(
       url: '${Env.apiBaseUrl}v1/apps/$appId/review/reply',
       headers: {'Content-Type': 'application/json'},
       method: 'PATCH',
-      body: jsonEncode({'response': reply}),
+      body: jsonEncode({'response': reply, 'reviewer_uid': reviewerUid}),
     );
     debugPrint('replyToAppReview: ${response?.body}');
     return response?.statusCode == 200;
@@ -210,17 +205,14 @@ Future<bool> isAppSetupCompleted(String? url) async {
 }
 
 Future<(bool, String, String?)> submitAppServer(File file, Map<String, dynamic> appData) async {
-  var request = http.MultipartRequest(
-    'POST',
-    Uri.parse('${Env.apiBaseUrl}v1/apps'),
-  );
-  request.files.add(await http.MultipartFile.fromPath('file', file.path, filename: basename(file.path)));
-  request.headers.addAll({'Authorization': await getAuthHeader()});
-  request.fields.addAll({'app_data': jsonEncode(appData)});
   debugPrint(jsonEncode(appData));
   try {
-    var streamedResponse = await request.send();
-    var response = await http.Response.fromStream(streamedResponse);
+    var response = await makeMultipartApiCall(
+      url: '${Env.apiBaseUrl}v1/apps',
+      files: [file],
+      fileFieldName: 'file',
+      fields: {'app_data': jsonEncode(appData)},
+    );
 
     if (response.statusCode == 200) {
       var respData = jsonDecode(response.body);
@@ -246,19 +238,16 @@ Future<(bool, String, String?)> submitAppServer(File file, Map<String, dynamic> 
 }
 
 Future<bool> updateAppServer(File? file, Map<String, dynamic> appData) async {
-  var request = http.MultipartRequest(
-    'PATCH',
-    Uri.parse('${Env.apiBaseUrl}v1/apps/${appData['id']}'),
-  );
-  if (file != null) {
-    request.files.add(await http.MultipartFile.fromPath('file', file.path, filename: basename(file.path)));
-  }
-  request.headers.addAll({'Authorization': await getAuthHeader()});
-  request.fields.addAll({'app_data': jsonEncode(appData)});
   debugPrint(jsonEncode(appData));
   try {
-    var streamedResponse = await request.send();
-    var response = await http.Response.fromStream(streamedResponse);
+    List<File> files = file != null ? [file] : [];
+    var response = await makeMultipartApiCall(
+      url: '${Env.apiBaseUrl}v1/apps/${appData['id']}',
+      files: files,
+      fileFieldName: 'file',
+      fields: {'app_data': jsonEncode(appData)},
+      method: 'PATCH',
+    );
 
     if (response.statusCode == 200) {
       debugPrint('updateAppServer Response body: ${jsonDecode(response.body)}');
@@ -287,7 +276,7 @@ Future<List<Category>> getAppCategories() async {
     return Category.fromJsonList(res);
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return [];
   }
 }
@@ -306,7 +295,7 @@ Future<List<AppCapability>> getAppCapabilitiesServer() async {
     return AppCapability.fromJsonList(res);
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return [];
   }
 }
@@ -325,7 +314,7 @@ Future<List<NotificationScope>> getNotificationScopesServer() async {
     return NotificationScope.fromJsonList(res);
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return [];
   }
 }
@@ -343,7 +332,7 @@ Future changeAppVisibilityServer(String appId, bool makePublic) async {
     return true;
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return false;
   }
 }
@@ -361,7 +350,7 @@ Future deleteAppServer(String appId) async {
     return true;
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return false;
   }
 }
@@ -379,7 +368,7 @@ Future<Map<String, dynamic>?> getAppDetailsServer(String appId) async {
     return jsonDecode(response.body);
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return null;
   }
 }
@@ -397,7 +386,7 @@ Future<List<PaymentPlan>> getPaymentPlansServer() async {
     return PaymentPlan.fromJsonList(jsonDecode(response.body));
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return [];
   }
 }
@@ -415,7 +404,7 @@ Future<String> getGenratedDescription(String name, String description) async {
     return jsonDecode(response.body)['description'];
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return '';
   }
 }
@@ -434,7 +423,7 @@ Future<List<AppApiKey>> listApiKeysServer(String appId) async {
     return AppApiKey.fromJsonList(jsonDecode(response.body));
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return [];
   }
 }
@@ -454,7 +443,7 @@ Future<Map<String, dynamic>> createApiKeyServer(String appId) async {
     return jsonDecode(response.body);
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     throw Exception('Failed to create API key: ${e.toString()}');
   }
 }
@@ -474,23 +463,20 @@ Future<bool> deleteApiKeyServer(String appId, String keyId) async {
     return true;
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     throw Exception('Failed to delete API key: ${e.toString()}');
   }
 }
 
 Future<Map> createPersonaApp(File file, Map<String, dynamic> personaData) async {
-  var request = http.MultipartRequest(
-    'POST',
-    Uri.parse('${Env.apiBaseUrl}v1/personas'),
-  );
-  request.files.add(await http.MultipartFile.fromPath('file', file.path, filename: basename(file.path)));
-  request.headers.addAll({'Authorization': await getAuthHeader()});
-  request.fields.addAll({'persona_data': jsonEncode(personaData)});
   print(jsonEncode(personaData));
   try {
-    var streamedResponse = await request.send();
-    var response = await http.Response.fromStream(streamedResponse);
+    var response = await makeMultipartApiCall(
+      url: '${Env.apiBaseUrl}v1/personas',
+      files: [file],
+      fileFieldName: 'file',
+      fields: {'persona_data': jsonEncode(personaData)},
+    );
 
     if (response.statusCode == 200) {
       debugPrint('createPersonaApp Response body: ${jsonDecode(response.body)}');
@@ -506,19 +492,16 @@ Future<Map> createPersonaApp(File file, Map<String, dynamic> personaData) async 
 }
 
 Future<bool> updatePersonaApp(File? file, Map<String, dynamic> personaData) async {
-  var request = http.MultipartRequest(
-    'PATCH',
-    Uri.parse('${Env.apiBaseUrl}v1/personas/${personaData['id']}'),
-  );
-  if (file != null) {
-    request.files.add(await http.MultipartFile.fromPath('file', file.path, filename: basename(file.path)));
-  }
-  request.headers.addAll({'Authorization': await getAuthHeader()});
-  request.fields.addAll({'persona_data': jsonEncode(personaData)});
   debugPrint(jsonEncode(personaData));
   try {
-    var streamedResponse = await request.send();
-    var response = await http.Response.fromStream(streamedResponse);
+    List<File> files = file != null ? [file] : [];
+    var response = await makeMultipartApiCall(
+      url: '${Env.apiBaseUrl}v1/personas/${personaData['id']}',
+      files: files,
+      fileFieldName: 'file',
+      fields: {'persona_data': jsonEncode(personaData)},
+      method: 'PATCH',
+    );
 
     if (response.statusCode == 200) {
       debugPrint('updatePersonaApp Response body: ${jsonDecode(response.body)}');
@@ -546,7 +529,7 @@ Future<bool> checkPersonaUsername(String username) async {
     return jsonDecode(response.body)['is_taken'];
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return true;
   }
 }
@@ -564,7 +547,7 @@ Future<Map?> getTwitterProfileData(String handle) async {
     return jsonDecode(response.body);
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return null;
   }
 }
@@ -590,7 +573,7 @@ Future<(bool, String?)> verifyTwitterOwnership(String username, String handle, S
     );
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return (false, null);
   }
 }
@@ -608,7 +591,7 @@ Future<String> getPersonaInitialMessage(String username) async {
     return jsonDecode(response.body)['message'];
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return '';
   }
 }
@@ -627,7 +610,7 @@ Future<App?> getUserPersonaServer() async {
     return App.fromJson(res);
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return null;
   }
 }
@@ -646,7 +629,7 @@ Future<String?> generateUsername(String handle) async {
     return res['username'];
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return null;
   }
 }
@@ -664,7 +647,7 @@ Future<bool> migrateAppOwnerId(String oldId) async {
     return true;
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return false;
   }
 }
@@ -682,7 +665,7 @@ Future<Map<String, dynamic>?> getUpsertUserPersonaServer() async {
     return jsonDecode(response.body);
   } catch (e, stackTrace) {
     debugPrint(e.toString());
-    PlatformManager.instance.instabug.reportCrash(e, stackTrace);
+    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
     return null;
   }
 }

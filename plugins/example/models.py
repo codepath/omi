@@ -24,7 +24,7 @@ class Event(BaseModel):
     created: bool = False
 
 
-class MemoryPhoto(BaseModel):
+class ConversationPhoto(BaseModel):
     base64: str
     description: str
 
@@ -75,18 +75,23 @@ class TranscriptSegment(BaseModel):
                 new_segment.start += delta_seconds
                 new_segment.end += delta_seconds
 
-            if (joined_similar_segments and
-                    (joined_similar_segments[-1].speaker == new_segment.speaker or
-                     (joined_similar_segments[-1].is_user and new_segment.is_user))):
+            if joined_similar_segments and (
+                joined_similar_segments[-1].speaker == new_segment.speaker
+                or (joined_similar_segments[-1].is_user and new_segment.is_user)
+            ):
                 joined_similar_segments[-1].text += f' {new_segment.text}'
                 joined_similar_segments[-1].end = new_segment.end
             else:
                 joined_similar_segments.append(new_segment)
 
-        if (segments and
-                (segments[-1].speaker == joined_similar_segments[0].speaker or
-                 (segments[-1].is_user and joined_similar_segments[0].is_user)) and
-                (joined_similar_segments[0].start - segments[-1].end < 30)):
+        if (
+            segments
+            and (
+                segments[-1].speaker == joined_similar_segments[0].speaker
+                or (segments[-1].is_user and joined_similar_segments[0].is_user)
+            )
+            and (joined_similar_segments[0].start - segments[-1].end < 30)
+        ):
             segments[-1].text += f' {joined_similar_segments[0].text}'
             segments[-1].end = joined_similar_segments[0].end
             joined_similar_segments.pop(0)
@@ -96,11 +101,7 @@ class TranscriptSegment(BaseModel):
         # Speechmatics specific issue with punctuation
         for i, segment in enumerate(segments):
             segments[i].text = (
-                segments[i].text.strip()
-                .replace('  ', '')
-                .replace(' ,', ',')
-                .replace(' .', '.')
-                .replace(' ?', '?')
+                segments[i].text.strip().replace('  ', '').replace(' ,', ',').replace(' .', '.').replace(' ?', '?')
             )
         return segments
 
@@ -113,12 +114,12 @@ class TranscriptSegment(BaseModel):
         return True
 
 
-class Memory(BaseModel):
+class Conversation(BaseModel):
     created_at: datetime
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     transcript_segments: List[TranscriptSegment] = []
-    photos: Optional[List[MemoryPhoto]] = []
+    photos: Optional[List[ConversationPhoto]] = []
     # recordingFilePath: Optional[str] = None
     # recordingFileBase64: Optional[str] = None
     structured: Structured
@@ -138,7 +139,7 @@ class Geolocation(BaseModel):
     location_type: Optional[str] = None
 
 
-class MemorySource(str, Enum):
+class ConversationSource(str, Enum):
     friend = 'friend'
     omi = 'omi'
     openglass = 'openglass'
@@ -146,16 +147,16 @@ class MemorySource(str, Enum):
     workflow = 'workflow'
 
 
-class ExternalIntegrationMemorySource(str, Enum):
+class ExternalIntegrationConversationSource(str, Enum):
     audio = 'audio_transcript'
     other = 'other_text'
 
 
-class ExternalIntegrationCreateMemory(BaseModel):
+class ExternalIntegrationCreateConversation(BaseModel):
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     text: str
-    text_source: ExternalIntegrationMemorySource = ExternalIntegrationMemorySource.audio
+    text_source: ExternalIntegrationConversationSource = ExternalIntegrationConversationSource.audio
     language: Optional[str] = None
     geolocation: Optional[Geolocation] = None
 
@@ -174,15 +175,28 @@ class ProactiveNotificationContextFitlersResponse(BaseModel):
     entities: List[str] = Field(description="A list of entity. ", default=[])
     topics: List[str] = Field(description="A list of topic. ", default=[])
 
+
 class ProactiveNotificationContextResponse(BaseModel):
     question: str = Field(description="A question to query the embeded vector database.", default='')
-    filters: ProactiveNotificationContextFitlersResponse = Field(description="Filter options to query the embeded vector database. ", default=None)
+    filters: ProactiveNotificationContextFitlersResponse = Field(
+        description="Filter options to query the embeded vector database. ", default=None
+    )
+
 
 class ProactiveNotificationResponse(BaseModel):
-    prompt: str = Field(description="A prompt or a template with the parameters such as {{user_name}} {{user_facts}}.", default='')
-    params: List[str] = Field(description="A list of string that match with proactive notification scopes. ", default=[])
-    context: ProactiveNotificationContextResponse = Field(description="An object to guide the system in retrieving the users context", default=None)
+    prompt: str = Field(
+        description="A prompt or a template with the parameters such as {{user_name}} {{user_facts}}.", default=''
+    )
+    params: List[str] = Field(
+        description="A list of string that match with proactive notification scopes. ", default=[]
+    )
+    context: ProactiveNotificationContextResponse = Field(
+        description="An object to guide the system in retrieving the users context", default=None
+    )
+
 
 class ProactiveNotificationEndpointResponse(BaseModel):
     message: str = Field(description="A short message to be sent as notification to the user, if needed.", default='')
-    notification: ProactiveNotificationResponse = Field(description="An object to guide the system in generating the proactive notification", default=None)
+    notification: ProactiveNotificationResponse = Field(
+        description="An object to guide the system in generating the proactive notification", default=None
+    )

@@ -6,6 +6,29 @@ import 'package:omi/services/devices/frame_connection.dart';
 import 'package:omi/services/devices/models.dart';
 import 'package:omi/utils/logger.dart';
 
+enum ImageOrientation {
+  orientation0, // 0 degrees
+  orientation90, // 90 degrees clockwise
+  orientation180, // 180 degrees
+  orientation270; // 270 degrees clockwise
+
+  factory ImageOrientation.fromValue(int value) {
+    switch (value) {
+      case 0:
+        return ImageOrientation.orientation0;
+      case 1:
+        return ImageOrientation.orientation90;
+      case 2:
+        return ImageOrientation.orientation180;
+      case 3:
+        return ImageOrientation.orientation270;
+      default:
+        // Fallback to 0 degrees if the value is unknown
+        return ImageOrientation.orientation0;
+    }
+  }
+}
+
 enum BleAudioCodec {
   pcm16,
   pcm8,
@@ -20,6 +43,21 @@ enum BleAudioCodec {
 
   bool isOpusSupported() {
     return this == BleAudioCodec.opusFS320 || this == BleAudioCodec.opus;
+  }
+
+  String toFormattedString() {
+    switch (this) {
+      case BleAudioCodec.opusFS320:
+        return 'OPUS (320)';
+      case BleAudioCodec.opus:
+        return 'OPUS';
+      case BleAudioCodec.pcm16:
+        return 'PCM (16kHz)';
+      case BleAudioCodec.pcm8:
+        return 'PCM (8kHz)';
+      default:
+        return toString().split('.').last.toUpperCase();
+    }
   }
 
   int getFramesPerSecond() {

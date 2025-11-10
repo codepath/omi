@@ -1,9 +1,10 @@
 import os
+
 import requests
 
-from models import ExternalIntegrationCreateMemory, Memory
-from .models import ZapierCreateMemory
+from models import ExternalIntegrationCreateConversation, Conversation
 
+from .models import ZapierCreateConversation
 
 # """
 #    Models
@@ -12,8 +13,10 @@ from .models import ZapierCreateMemory
 
 class ZapierDatabasePropertyModel:
     def __init__(
-            self,
-            id, name, property_type,
+        self,
+        id,
+        name,
+        property_type,
     ) -> None:
         self.id = id
         self.name = name
@@ -28,7 +31,7 @@ class ZapierDatabasePropertyModel:
 
 class ZapierDatabaseModel:
     def __init__(
-            self,
+        self,
     ) -> None:
         self.id = ""
         self.properties = []
@@ -43,8 +46,7 @@ class ZapierDatabaseModel:
         properties: [ZapierDatabasePropertyModel] = []
         if data["properties"] is not None:
             for prop in data["properties"].values():
-                properties.append(
-                    ZapierDatabasePropertyModel.from_dict(prop))
+                properties.append(ZapierDatabasePropertyModel.from_dict(prop))
         model.properties = properties
 
         return model
@@ -60,7 +62,7 @@ class ZapierDatabaseModel:
 
 class ZapierOAuthModel:
     def __init__(
-            self,
+        self,
     ) -> None:
         self.access_token = ""
         pass
@@ -76,6 +78,7 @@ class ZapierOAuthModel:
 #    Client
 # """
 
+
 class ZapierClient:
     """
     Implementation of the Zapier APIs.
@@ -84,18 +87,22 @@ class ZapierClient:
     """
 
     def __init__(
-            self,
+        self,
     ) -> None:
         pass
 
-    def send_hook_memory_created(self, target_url: str, memory: ZapierCreateMemory):
+    def send_hook_conversation_created(self, target_url: str, conversation: ZapierCreateConversation):
         resp: requests.Response
         err = None
         try:
-            resp = requests.post(target_url, json=memory.model_dump(mode="json"), headers={
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            })
+            resp = requests.post(
+                target_url,
+                json=conversation.model_dump(mode="json"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+            )
         except requests.exceptions.HTTPError:
             resp_text = f"{resp}"
             err = {
@@ -139,7 +146,7 @@ class ZapierClient:
         return {"result": "{}"}
 
 
-class FriendClient:
+class OmiClient:
     """
     Implementation of the Omi Core APIs.
 
@@ -147,24 +154,30 @@ class FriendClient:
     """
 
     def __init__(
-            self,
-            base_url,
-            workflow_api_key,
+        self,
+        base_url,
+        zapier_app_id,
+        zapier_app_sk,
     ) -> None:
         self.base_url = base_url
-        self.workflow_api_key = workflow_api_key
+        self.zapier_app_id = zapier_app_id
+        self.zapier_app_sk = zapier_app_sk
         pass
 
-    def create_memory(self, memory: ExternalIntegrationCreateMemory, uid: str):
+    def create_conversation(self, conversation: ExternalIntegrationCreateConversation, uid: str):
         resp: requests.Response
         err = None
-        url = f"{self.base_url}/v1/integrations/workflow/memories?uid={uid}"
+        url = f"{self.base_url}/v2/integrations/{self.zapier_app_id}/user/conversations?uid={uid}"
         try:
-            resp = requests.post(url, json=memory.model_dump(mode="json"), headers={
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'api-key': self.workflow_api_key,
-            })
+            resp = requests.post(
+                url,
+                json=conversation.model_dump(mode="json"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {self.zapier_app_sk}",
+                },
+            )
         except requests.exceptions.HTTPError:
             resp_text = f"{resp.text()}"
             err = {
@@ -207,16 +220,19 @@ class FriendClient:
 
         return {"result": "{}"}
 
-    def get_latest_memory(self, uid: str):
+    def get_latest_conversation(self, uid: str):
         resp: requests.Response
         err = None
-        url = f"{self.base_url}/v1/integrations/workflow/memories?uid={uid}&limit=1"
+        url = f"{self.base_url}/v2/integrations/{self.zapier_app_id}/conversations?uid={uid}&limit=1"
         try:
-            resp = requests.get(url, headers={
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'api-key': self.workflow_api_key,
-            })
+            resp = requests.get(
+                url,
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {self.zapier_app_sk}",
+                },
+            )
         except requests.exceptions.HTTPError:
             resp_text = f"{resp.text()}"
             err = {
@@ -260,17 +276,18 @@ class FriendClient:
         # view
         resp_json = resp.json()
         if len(resp_json) > 0:
-            latest_memory_json = resp_json[0]
-            return {"result": Memory(**latest_memory_json)}
+            latest_conversation_json = resp_json[0]
+            return {"result": Conversation(**latest_conversation_json)}
 
         return {"result": None}
 
 
 zap_client = ZapierClient()
 
-friend_client = FriendClient(
-    base_url=os.getenv('FRIEND_API_URL'),
-    workflow_api_key=os.getenv('WORKFLOW_API_KEY'),
+omi_client = OmiClient(
+    base_url=os.getenv("OMI_BASE_API_URL"),
+    zapier_app_id=os.getenv("OMI_ZAPIER_APP_ID"),
+    zapier_app_sk=os.getenv("OMI_ZAPIER_APP_SECRET"),
 )
 
 
@@ -278,5 +295,5 @@ def get_zapier():
     return zap_client
 
 
-def get_friend():
-    return friend_client
+def get_omi():
+    return omi_client

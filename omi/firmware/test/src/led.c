@@ -1,19 +1,18 @@
 #include <stdio.h>
-#include <zephyr/kernel.h>
 #include <stdlib.h>
-#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/pwm.h>
+#include <zephyr/kernel.h>
 #include <zephyr/shell/shell.h>
 
-static const struct gpio_dt_spec led_red = GPIO_DT_SPEC_GET_OR(DT_NODELABEL(led_red), gpios, {0});
-static const struct gpio_dt_spec led_green = GPIO_DT_SPEC_GET_OR(DT_NODELABEL(led_green), gpios, {0});
-static const struct gpio_dt_spec led_blue = GPIO_DT_SPEC_GET_OR(DT_NODELABEL(led_blue), gpios, {0});
+static const struct pwm_dt_spec led_red = PWM_DT_SPEC_GET(DT_NODELABEL(led_red));
+static const struct pwm_dt_spec led_green = PWM_DT_SPEC_GET(DT_NODELABEL(led_green));
+static const struct pwm_dt_spec led_blue = PWM_DT_SPEC_GET(DT_NODELABEL(led_blue));
 
 static int led_control(int led_num, int state)
 {
     int ret;
-    const struct gpio_dt_spec *led_spec;
-    switch (led_num)
-    {
+    const struct pwm_dt_spec *led_spec;
+    switch (led_num) {
     case 0:
         led_spec = &led_red;
         break;
@@ -27,15 +26,18 @@ static int led_control(int led_num, int state)
         return -EINVAL;
     }
 
-    ret = gpio_pin_configure_dt(led_spec, GPIO_OUTPUT);
-    if (ret < 0)
-    {
-        return ret;
+    if (!pwm_is_ready_dt(led_spec)) {
+        return -ENODEV;
     }
 
-    ret = gpio_pin_set_dt(led_spec, state);
-    if (ret < 0)
-    {
+    uint32_t pulse_width_ns = 0;
+    if (state) {
+        // Set to full brightness when on
+        pulse_width_ns = led_spec->period;
+    }
+
+    ret = pwm_set_pulse_dt(led_spec, pulse_width_ns);
+    if (ret < 0) {
         return ret;
     }
 
@@ -45,15 +47,13 @@ static int led_control(int led_num, int state)
 static int cmd_led_on(const struct shell *shell, size_t argc, char **argv)
 {
     int ret;
-    if (argc < 2)
-    {
+    if (argc < 2) {
         shell_error(shell, "Usage: %s <led_num>", argv[0]);
         return -EINVAL;
     }
 
     ret = led_control(atoi(argv[1]), 1);
-    if (ret < 0)
-    {
+    if (ret < 0) {
         shell_error(shell, "Failed to turn on LED %d (%d)", atoi(argv[1]), ret);
         return ret;
     }
@@ -64,15 +64,13 @@ static int cmd_led_on(const struct shell *shell, size_t argc, char **argv)
 static int cmd_led_off(const struct shell *shell, size_t argc, char **argv)
 {
     int ret;
-    if (argc < 2)
-    {
+    if (argc < 2) {
         shell_error(shell, "Usage: %s <led_num>", argv[0]);
         return -EINVAL;
     }
 
     ret = led_control(atoi(argv[1]), 0);
-    if (ret < 0)
-    {
+    if (ret < 0) {
         shell_error(shell, "Failed to turn off LED %d (%d)", atoi(argv[1]), ret);
         return ret;
     }
