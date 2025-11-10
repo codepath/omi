@@ -10,6 +10,8 @@ import 'package:omi/utils/analytics/mixpanel.dart';
 import 'package:omi/utils/other/temp.dart';
 import 'package:omi/utils/ui_guidelines.dart';
 import 'package:omi/widgets/extensions/string.dart';
+import 'package:omi/backend/http/api/conversations.dart';  
+import 'package:omi/pages/conversation_detail/page.dart'; 
 
 import 'delete_confirmation.dart';
 
@@ -65,6 +67,11 @@ class MemoryItem extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppStyles.spacingM),
+                if(memory.conversationId != null)
+                  IconButton(
+                    icon: Icon(Icons.chat_bubble_outline,size:20,color: Colors.white),
+                    onPressed: () => _navigateConversation(context)
+                    ),
                 _buildVisibilityButton(context),
               ],
             ),
@@ -137,6 +144,21 @@ class MemoryItem extends StatelessWidget {
       ),
       child: memoryWidget,
     );
+  }
+
+  void _navigateConversation(BuildContext context) async
+  {
+    showDialog(context:context,builder: (_) => Center(child: CircularProgressIndicator()));
+    final conversation = await getConversationById(memory.conversationId!);
+    Navigator.pop(context);
+
+    if(conversation == null)
+    {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conversation not found')),);
+      return;
+    }
+
+    Navigator.push(context,MaterialPageRoute(builder: (_) => ConversationDetailPage(conversation:conversation)));
   }
 
   Widget _buildVisibilityButton(BuildContext context) {
