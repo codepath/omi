@@ -148,7 +148,8 @@ class MemoryItem extends StatelessWidget {
 
   void _navigateConversation(BuildContext context) async
   {
-    showDialog(context:context,builder: (_) => Center(child: CircularProgressIndicator()));
+    showDialog(context:context, builder: (_) => const Center(child: CircularProgressIndicator(color:Colors.blue)));
+    await Future.delayed(const Duration(seconds:2));
     final conversation = await getConversationById(memory.conversationId!);
     Navigator.pop(context);
 
