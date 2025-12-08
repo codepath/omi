@@ -1,4 +1,8 @@
+import 'dart:io';
+
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:omi/backend/auth.dart';
 import 'package:omi/backend/preferences.dart';
@@ -49,15 +53,86 @@ class SettingsDrawer extends StatefulWidget {
 class _SettingsDrawerState extends State<SettingsDrawer> {
   String? version;
   String? buildVersion;
+  String? deviceModel;
+  String? osVersion;
 
   @override
   void initState() {
     super.initState();
-    PackageInfo.fromPlatform().then((PackageInfo packageInfo) {
-      version = packageInfo.version;
-      buildVersion = packageInfo.buildNumber.toString();
-      setState(() {});
-    });
+    _loadDeviceInfo();
+  }
+
+  Future<void> _loadDeviceInfo() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    version = packageInfo.version;
+    buildVersion = packageInfo.buildNumber.toString();
+
+    final deviceInfo = DeviceInfoPlugin();
+    if (Platform.isIOS) {
+      final iosInfo = await deviceInfo.iosInfo;
+      deviceModel = iosInfo.utsname.machine;
+      osVersion = 'iOS ${iosInfo.systemVersion}';
+    } else if (Platform.isAndroid) {
+      final androidInfo = await deviceInfo.androidInfo;
+      deviceModel = '${androidInfo.manufacturer} ${androidInfo.model}';
+      osVersion = 'Android ${androidInfo.version.release}';
+    } else if (Platform.isMacOS) {
+      final macInfo = await deviceInfo.macOsInfo;
+      deviceModel = macInfo.model;
+      osVersion = 'macOS ${macInfo.osRelease}';
+    }
+
+    setState(() {});
+  }
+
+  String _getDeviceInfoText() {
+    final parts = <String>[];
+    if (version != null) {
+      parts.add('Version: $version${buildVersion != null ? " ($buildVersion)" : ""}');
+    }
+    if (deviceModel != null) {
+      parts.add('Device: $deviceModel');
+    }
+    if (osVersion != null) {
+      parts.add('OS: $osVersion');
+    }
+    return parts.join('\n');
+  }
+
+  void _copyDeviceInfo(BuildContext context) {
+    final info = _getDeviceInfoText();
+    Clipboard.setData(ClipboardData(text: info));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Device info copied to clipboard'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Widget _buildVersionInfo(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          '${version ?? ""}${buildVersion != null ? " ($buildVersion)" : ""}',
+          style: const TextStyle(
+            color: Color(0xFF8E8E93),
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: () => _copyDeviceInfo(context),
+          child: const Icon(
+            Icons.copy,
+            color: Color(0xFF8E8E93),
+            size: 16,
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildSettingsItem({
@@ -307,14 +382,7 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
           const SizedBox(height: 32),
 
           // Version Info
-          Text(
-            '${version ?? ""}${buildVersion != null ? " ($buildVersion)" : ""}',
-            style: const TextStyle(
-              color: Color(0xFF8E8E93),
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
+          _buildVersionInfo(context),
           const SizedBox(height: 24),
         ],
       );
@@ -380,14 +448,7 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
         const SizedBox(height: 32),
 
         // Version Info
-        Text(
-          '${version ?? ""}${buildVersion != null ? " ($buildVersion)" : ""}',
-          style: const TextStyle(
-            color: Color(0xFF8E8E93),
-            fontSize: 13,
-            fontWeight: FontWeight.w400,
-          ),
-        ),
+        _buildVersionInfo(context),
         const SizedBox(height: 24),
       ],
     );

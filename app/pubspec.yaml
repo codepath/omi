@@ -82,6 +82,7 @@ dependencies:
   json_annotation: ^4.9.0
   json_serializable: 6.8.0
   package_info_plus: ^8.0.1
+  device_info_plus: ^11.1.0
   path_provider: 2.1.5
   flutter_foreground_task: 9.1.0
   upgrader: 11.4.0
