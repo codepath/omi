@@ -26,6 +26,7 @@ class ConversationsPage extends StatefulWidget {
 class _ConversationsPageState extends State<ConversationsPage> with AutomaticKeepAliveClientMixin {
   TextEditingController textController = TextEditingController();
   final AppReviewService _appReviewService = AppReviewService();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   bool get wantKeepAlive => true;
@@ -127,6 +128,7 @@ class _ConversationsPageState extends State<ConversationsPage> with AutomaticKee
           return;
         },
         child: CustomScrollView(
+          controller: _scrollController,
           slivers: [
             // const SliverToBoxAdapter(child: SizedBox(height: 16)), // above capture widget
             const SliverToBoxAdapter(child: SpeechProfileCardWidget()),
@@ -202,5 +204,21 @@ class _ConversationsPageState extends State<ConversationsPage> with AutomaticKee
         ),
       );
     });
+  }
+
+  void scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 }

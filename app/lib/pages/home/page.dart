@@ -397,11 +397,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver, Ticker
                             child: PageView(
                               controller: _controller,
                               physics: const NeverScrollableScrollPhysics(),
-                              children: const [
-                                ConversationsPage(),
-                                ActionItemsPage(),
-                                MemoriesPage(),
-                                AppsPage(),
+                              children: [
+                                _ConversationsPageWithCallback(),
+                                _ActionItemsPageWithCallback(),
+                                _MemoriesPageWithCallback(),
+                                _AppsPageWithCallback(),
                               ],
                             ),
                           ),
@@ -441,6 +441,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver, Ticker
                                               MixpanelManager().bottomNavigationTabClicked('Home');
                                               primaryFocus?.unfocus();
                                               if (home.selectedIndex == 0) {
+                                                // Scroll to top if already on this page
+                                                home.scrollCurrentPageToTop();
                                                 return;
                                               }
                                               home.setIndex(0);
@@ -473,6 +475,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver, Ticker
                                               MixpanelManager().bottomNavigationTabClicked('Action Items');
                                               primaryFocus?.unfocus();
                                               if (home.selectedIndex == 1) {
+                                                // Scroll to top if already on this page
+                                                home.scrollCurrentPageToTop();
                                                 return;
                                               }
                                               home.setIndex(1);
@@ -507,6 +511,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver, Ticker
                                               MixpanelManager().bottomNavigationTabClicked('Memories');
                                               primaryFocus?.unfocus();
                                               if (home.selectedIndex == 2) {
+                                                // Scroll to top if already on this page
+                                                home.scrollCurrentPageToTop();
                                                 return;
                                               }
                                               home.setIndex(2);
@@ -539,6 +545,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver, Ticker
                                               MixpanelManager().bottomNavigationTabClicked('Explore');
                                               primaryFocus?.unfocus();
                                               if (home.selectedIndex == 3) {
+                                                // Scroll to top if already on this page
+                                                home.scrollCurrentPageToTop();
                                                 return;
                                               }
                                               home.setIndex(3);
@@ -831,5 +839,114 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver, Ticker
       _controller = null;
     }
     super.dispose();
+  }
+}
+
+// Wrapper widgets to register scroll-to-top callbacks
+class _ConversationsPageWithCallback extends StatefulWidget {
+  @override
+  State<_ConversationsPageWithCallback> createState() => _ConversationsPageWithCallbackState();
+}
+
+class _ConversationsPageWithCallbackState extends State<_ConversationsPageWithCallback> {
+  final GlobalKey<State<StatefulWidget>> _pageKey = GlobalKey<State<StatefulWidget>>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<HomeProvider>().registerScrollToTopCallback(0, () {
+        // Use dynamic dispatch to call scrollToTop
+        final state = _pageKey.currentState;
+        if (state != null && state is State) {
+          (state as dynamic).scrollToTop();
+        }
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ConversationsPage(key: _pageKey);
+  }
+}
+
+class _ActionItemsPageWithCallback extends StatefulWidget {
+  @override
+  State<_ActionItemsPageWithCallback> createState() => _ActionItemsPageWithCallbackState();
+}
+
+class _ActionItemsPageWithCallbackState extends State<_ActionItemsPageWithCallback> {
+  final GlobalKey<State<StatefulWidget>> _pageKey = GlobalKey<State<StatefulWidget>>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<HomeProvider>().registerScrollToTopCallback(1, () {
+        // Use dynamic dispatch to call scrollToTop
+        final state = _pageKey.currentState;
+        if (state != null && state is State) {
+          (state as dynamic).scrollToTop();
+        }
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionItemsPage(key: _pageKey);
+  }
+}
+
+class _MemoriesPageWithCallback extends StatefulWidget {
+  @override
+  State<_MemoriesPageWithCallback> createState() => _MemoriesPageWithCallbackState();
+}
+
+class _MemoriesPageWithCallbackState extends State<_MemoriesPageWithCallback> {
+  final GlobalKey<MemoriesPageState> _pageKey = GlobalKey<MemoriesPageState>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<HomeProvider>().registerScrollToTopCallback(2, () {
+        _pageKey.currentState?.scrollToTop();
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MemoriesPage(key: _pageKey);
+  }
+}
+
+class _AppsPageWithCallback extends StatefulWidget {
+  @override
+  State<_AppsPageWithCallback> createState() => _AppsPageWithCallbackState();
+}
+
+class _AppsPageWithCallbackState extends State<_AppsPageWithCallback> {
+  final GlobalKey<State<StatefulWidget>> _pageKey = GlobalKey<State<StatefulWidget>>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<HomeProvider>().registerScrollToTopCallback(3, () {
+        // Use dynamic dispatch to call scrollToTop
+        final state = _pageKey.currentState;
+        if (state != null && state is State) {
+          (state as dynamic).scrollToTop();
+        }
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppsPage(key: _pageKey);
   }
 }
