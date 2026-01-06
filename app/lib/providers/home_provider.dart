@@ -21,6 +21,12 @@ class HomeProvider extends ChangeNotifier {
   bool isLoading = false;
   String userPrimaryLanguage = SharedPreferencesUtil().userPrimaryLanguage;
   bool hasSetPrimaryLanguage = SharedPreferencesUtil().hasSetPrimaryLanguage;
+  
+  // Callbacks for scroll-to-top functionality
+  VoidCallback? _scrollToTopCallback0; // Conversations
+  VoidCallback? _scrollToTopCallback1; // Action Items
+  VoidCallback? _scrollToTopCallback2; // Memories
+  VoidCallback? _scrollToTopCallback3; // Apps
 
   // Available languages ordered by popularity
   final Map<String, String> availableLanguages = {
@@ -83,6 +89,40 @@ class HomeProvider extends ChangeNotifier {
   void setIndex(int index) {
     selectedIndex = index;
     notifyListeners();
+  }
+
+  void registerScrollToTopCallback(int index, VoidCallback? callback) {
+    switch (index) {
+      case 0:
+        _scrollToTopCallback0 = callback;
+        break;
+      case 1:
+        _scrollToTopCallback1 = callback;
+        break;
+      case 2:
+        _scrollToTopCallback2 = callback;
+        break;
+      case 3:
+        _scrollToTopCallback3 = callback;
+        break;
+    }
+  }
+
+  void scrollCurrentPageToTop() {
+    switch (selectedIndex) {
+      case 0:
+        _scrollToTopCallback0?.call();
+        break;
+      case 1:
+        _scrollToTopCallback1?.call();
+        break;
+      case 2:
+        _scrollToTopCallback2?.call();
+        break;
+      case 3:
+        _scrollToTopCallback3?.call();
+        break;
+    }
   }
 
   void setIsLoading(bool loading) {

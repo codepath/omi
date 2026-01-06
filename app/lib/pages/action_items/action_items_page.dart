@@ -73,7 +73,7 @@ class _ActionItemsPageState extends State<ActionItemsPage> with AutomaticKeepAli
       await _appReviewService.markFirstActionItemCompleted();
 
       if (mounted) {
-        await _appReviewService.showReviewPromptIfNeeded(context);
+        await _appReviewService.showReviewPromptIfNeeded(context, isProcessingFirstConversation: false);
       }
     }
   }
@@ -84,6 +84,16 @@ class _ActionItemsPageState extends State<ActionItemsPage> with AutomaticKeepAli
       if (!provider.isFetching && provider.hasMore) {
         provider.loadMoreActionItems();
       }
+    }
+  }
+
+  void scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
 

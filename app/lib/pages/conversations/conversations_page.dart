@@ -6,6 +6,7 @@ import 'package:omi/pages/conversations/widgets/search_result_header_widget.dart
 import 'package:omi/pages/conversations/widgets/search_widget.dart';
 import 'package:omi/providers/capture_provider.dart';
 import 'package:omi/providers/conversation_provider.dart';
+import 'package:omi/services/app_review_service.dart';
 import 'package:omi/utils/ui_guidelines.dart';
 import 'package:omi/widgets/custom_refresh_indicator.dart';
 import 'package:provider/provider.dart';
@@ -24,6 +25,8 @@ class ConversationsPage extends StatefulWidget {
 
 class _ConversationsPageState extends State<ConversationsPage> with AutomaticKeepAliveClientMixin {
   TextEditingController textController = TextEditingController();
+  final AppReviewService _appReviewService = AppReviewService();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   bool get wantKeepAlive => true;
@@ -31,8 +34,14 @@ class _ConversationsPageState extends State<ConversationsPage> with AutomaticKee
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (Provider.of<ConversationProvider>(context, listen: false).conversations.isEmpty) {
-        await Provider.of<ConversationProvider>(context, listen: false).getInitialConversations();
+      final conversationProvider = Provider.of<ConversationProvider>(context, listen: false);
+      if (conversationProvider.conversations.isEmpty) {
+        await conversationProvider.getInitialConversations();
+      }
+      
+      // Check if we should show the app review prompt for first conversation
+      if (mounted && conversationProvider.conversations.isNotEmpty) {
+        await _appReviewService.showReviewPromptIfNeeded(context, isProcessingFirstConversation: true);
       }
     });
     super.initState();
@@ -119,6 +128,7 @@ class _ConversationsPageState extends State<ConversationsPage> with AutomaticKee
           return;
         },
         child: CustomScrollView(
+          controller: _scrollController,
           slivers: [
             // const SliverToBoxAdapter(child: SizedBox(height: 16)), // above capture widget
             const SliverToBoxAdapter(child: SpeechProfileCardWidget()),
@@ -194,5 +204,21 @@ class _ConversationsPageState extends State<ConversationsPage> with AutomaticKee
         ),
       );
     });
+  }
+
+  void scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 }
