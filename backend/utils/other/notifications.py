@@ -13,6 +13,7 @@ from models.notification_message import NotificationMessage
 from utils.llm.external_integrations import get_conversation_summary
 from utils.notifications import send_notification, send_bulk_notification
 from utils.webhooks import day_summary_webhook
+from utils.other.backup_scheduler import start_backup_cron_job
 
 
 async def start_cron_job():
@@ -20,6 +21,9 @@ async def start_cron_job():
         print('start_cron_job')
         await send_daily_notification()
         await send_daily_summary_notification()
+
+    # Run database backup cron (independent schedule)
+    await start_backup_cron_job()
 
 
 def should_run_job():

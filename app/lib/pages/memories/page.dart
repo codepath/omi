@@ -716,6 +716,16 @@ class MemoriesPageState extends State<MemoriesPage> with AutomaticKeepAliveClien
       builder: (context) => MemoryManagementSheet(provider: provider),
     );
   }
+
+  void scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
 }
 
 class _SliverSearchBarDelegate extends SliverPersistentHeaderDelegate {

@@ -41,6 +41,7 @@ class _ExploreInstallPageState extends State<ExploreInstallPage> with AutomaticK
   final ValueNotifier<App?> _selectedAppNotifier = ValueNotifier<App?>(null);
   late TextEditingController searchController;
   Debouncer debouncer = Debouncer(delay: const Duration(milliseconds: 500));
+  final ScrollController _scrollController = ScrollController();
 
   // Cache grouped apps to avoid recomputing on every rebuild
   Map<String, List<App>>? _cachedGroupedApps;
@@ -67,6 +68,7 @@ class _ExploreInstallPageState extends State<ExploreInstallPage> with AutomaticK
   @override
   void dispose() {
     searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -482,6 +484,7 @@ class _ExploreInstallPageState extends State<ExploreInstallPage> with AutomaticK
           ),
           builder: (context, state, child) {
             return CustomScrollView(
+              controller: _scrollController,
               slivers: [
                 const SliverToBoxAdapter(child: SizedBox(height: 12)),
                 SliverToBoxAdapter(
@@ -713,4 +716,14 @@ class _ExploreInstallPageState extends State<ExploreInstallPage> with AutomaticK
 
   @override
   bool get wantKeepAlive => true;
+
+  void scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
 }

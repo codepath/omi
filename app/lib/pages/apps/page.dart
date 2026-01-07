@@ -15,6 +15,8 @@ class AppsPage extends StatefulWidget {
 }
 
 class _AppsPageState extends State<AppsPage> with AutomaticKeepAliveClientMixin {
+  final GlobalKey<_ExploreInstallPageState> _exploreInstallPageKey = GlobalKey<_ExploreInstallPageState>();
+
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -57,7 +59,7 @@ class _AppsPageState extends State<AppsPage> with AutomaticKeepAliveClientMixin 
             //   ],
             // ),
             Expanded(
-              child: ExploreInstallPage(),
+              child: ExploreInstallPage(key: _exploreInstallPageKey),
             ),
             // const Expanded(
             //     child: TabBarView(
@@ -74,6 +76,10 @@ class _AppsPageState extends State<AppsPage> with AutomaticKeepAliveClientMixin 
 
   @override
   bool get wantKeepAlive => true;
+
+  void scrollToTop() {
+    _exploreInstallPageKey.currentState?.scrollToTop();
+  }
 }
 
 class EmptyAppsWidget extends StatelessWidget {
